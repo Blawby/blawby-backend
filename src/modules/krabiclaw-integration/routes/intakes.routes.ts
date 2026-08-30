@@ -1,0 +1,460 @@
+import { z } from '@hono/zod-openapi';
+
+import { createKrabiClawFacadeRouteMiddleware } from '@/modules/krabiclaw-integration/middleware/krabiclaw-facade.middleware';
+import { registerFacadeRoute } from '@/modules/krabiclaw-integration/route-registry';
+import type { KrabiClawFacadeRouteDefinition } from '@/modules/krabiclaw-integration/types/route-policy.types';
+import {
+  krabiclawForbiddenResponse,
+  krabiclawInvalidTokenResponse,
+  krabiclawRateLimitedResponse,
+  krabiclawValidationFailedResponse,
+} from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
+import {
+  krabiclawPrerequisiteFailedResponse,
+  krabiclawRequestConflictResponse,
+  krabiclawResourceNotFoundResponse,
+  krabiclawStaffForbiddenResponse,
+} from '@/modules/krabiclaw-integration/validations/facade-route-error-responses';
+import {
+  krabiclawLocalResourceIdSchema,
+  krabiclawRequestReferenceSchema,
+  krabiclawStrictSchema,
+} from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
+import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
+import { routeBuilder } from '@/shared/router/route-builder';
+
+/**
+ * Intake family facade routes (R1, R5-R12, R14-R16, R18, R22-R26). No
+ * `practice_id`/`slug` path or body parameter anywhere — the organization is
+ * always derived server-side from the verified `KrabiClawFacadeRequestContext`
+ * (R14), never from the caller.
+ *
+ * Route registration order in `http.ts` matters (see that file's own
+ * doc comment on `mountKrabiClawFacadeTerminalHandlers`): Hono matches
+ * routes in registration order, not by static-vs-dynamic specificity, and
+ * `GET /intakes/settings` and `GET /intakes/{uuid}` are both two-segment GET
+ * routes — `getIntakeSettingsRoute` MUST be registered before
+ * `getIntakeRoute` or a request for `/intakes/settings` could be captured by
+ * the `{uuid}` route instead.
+ */
+const policyResponses = {
+  400: krabiclawValidationFailedResponse,
+  401: krabiclawInvalidTokenResponse,
+  403: krabiclawForbiddenResponse,
+  429: krabiclawRateLimitedResponse,
+};
+
+/** Public intake without payment: ownership/request-reference/existence mismatches are all indistinguishable 404s (R14). */
+const publicIntakeDomainResponses = {
+  404: krabiclawResourceNotFoundResponse,
+};
+
+/** Public intake payment: adds the two payment-specific reviewed codes from the Reviewed Error Contract table. */
+const publicIntakePaymentDomainResponses = {
+  404: krabiclawResourceNotFoundResponse,
+  409: krabiclawRequestConflictResponse,
+  422: krabiclawPrerequisiteFailedResponse,
+};
+
+/**
+ * Staff intake: unlike the public family, a staff-actor 403 is disclosed
+ * (`krabiclawStaffForbiddenResponse`, code `forbidden`) rather than folded
+ * into 404 — staff are known identified actors, not anonymous probes, so R14's
+ * indistinguishability requirement (which targets public cross-reference
+ * failures specifically) does not apply here.
+ */
+const staffIntakeDomainResponses = {
+  403: krabiclawStaffForbiddenResponse,
+  404: krabiclawResourceNotFoundResponse,
+};
+
+const intakeUuidParamSchema = z.object({
+  uuid: krabiclawLocalResourceIdSchema.openapi({
+    param: { name: 'uuid', in: 'path' },
+    description: 'Practice client intake UUID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  }),
+});
+
+const requestReferencePathParamSchema = z.object({
+  request_id: krabiclawRequestReferenceSchema.openapi({
+    param: { name: 'request_id', in: 'path' },
+    description: 'KrabiClaw request reference (UUID v4) supplied when the intake was created',
+    example: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+  }),
+});
+
+/**
+ * GET /intakes/settings — human or anonymous, no request reference (there is
+ * no specific intake to bind to yet).
+ */
+const getIntakeSettingsDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'get',
+  path: '/intakes/settings',
+  scope: 'legal:intakes',
+  actorPolicy: 'human-or-anonymous',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'none',
+};
+
+// oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `.shape` is Zod's built-in ZodObject API, not a renameable local symbol.
+const intakeSettingsQueryFacadeSchema = krabiclawStrictSchema(intakeValidations.getIntakeSettingsQuerySchema.shape);
+
+const getIntakeSettingsRoute = routeBuilder.build({
+  method: getIntakeSettingsDefinition.method,
+  path: getIntakeSettingsDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Get intake settings (KrabiClaw facade)',
+  description: 'Retrieve public intake settings for the caller-verified organization.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeSettingsDefinition)],
+  request: { query: intakeSettingsQueryFacadeSchema },
+  responses: {
+    ...policyResponses,
+    ...publicIntakePaymentDomainResponses,
+    200: {
+      description: 'Intake settings retrieved successfully',
+      content: { 'application/json': { schema: intakeValidations.practiceClientIntakeSettingsResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(getIntakeSettingsRoute, getIntakeSettingsDefinition);
+
+/**
+ * POST /intakes — human or anonymous. `requestReferencePolicy: 'required'`
+ * (R5): the browser-generated request reference is always supplied at
+ * creation, persisted as `krabiclaw_request_key`, and reused for recovery and
+ * anonymous follow-up authorization by every other route below.
+ */
+const postIntakesDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'post',
+  path: '/intakes',
+  scope: 'legal:intakes',
+  actorPolicy: 'human-or-anonymous',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'required',
+};
+
+/**
+ * `slug` and `user_id` are forbidden identity fields (`KRABICLAW_FORBIDDEN_IDENTITY_FIELD_KEYS`)
+ * — the owning schema carries both, so they are omitted before building the
+ * strict facade DTO (KTD5). Organization is derived from context; the acting
+ * user (when human) is derived from `ctx.legalOperationContext.userId`, never
+ * the request body.
+ */
+const createIntakeFacadeObjectSchema = intakeValidations.createPracticeClientIntakeSchema.omit({
+  slug: true,
+  user_id: true,
+});
+// oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `.shape` is Zod's built-in ZodObject API, not a renameable local symbol.
+const createIntakeFacadeFields = createIntakeFacadeObjectSchema.shape;
+const createIntakeFacadeSchema = krabiclawStrictSchema(createIntakeFacadeFields);
+
+const postIntakesRoute = routeBuilder.build({
+  method: postIntakesDefinition.method,
+  path: postIntakesDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Create a practice client intake (KrabiClaw facade)',
+  description:
+    'Creates (or recovers, by the trusted request reference) a practice client intake for the caller-verified organization.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(postIntakesDefinition)],
+  request: {
+    body: {
+      content: { 'application/json': { schema: createIntakeFacadeSchema } },
+      description: 'Intake submission data',
+    },
+  },
+  responses: {
+    ...policyResponses,
+    ...publicIntakeDomainResponses,
+    201: {
+      description: 'Intake created or recovered successfully',
+      content: { 'application/json': { schema: intakeValidations.createPracticeClientIntakeResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(postIntakesRoute, postIntakesDefinition);
+
+/**
+ * GET /intakes/requests/{request_id} — request-reference-based recovery. The
+ * path parameter itself IS the KrabiClaw request reference (not an intake
+ * UUID) and functions as the proof of correlation for this lookup, so no
+ * separate trusted header is required for this specific route
+ * (`requestReferencePolicy: 'none'`) — `getIntakeByRequestReference` performs
+ * the equality check against the stored `krabiclaw_request_key` directly.
+ */
+const getIntakeByRequestReferenceDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'get',
+  path: '/intakes/requests/{request_id}',
+  scope: 'legal:intakes',
+  actorPolicy: 'human-or-anonymous',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'none',
+};
+
+const getIntakeByRequestReferenceRoute = routeBuilder.build({
+  method: getIntakeByRequestReferenceDefinition.method,
+  path: getIntakeByRequestReferenceDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Recover a practice client intake by request reference (KrabiClaw facade)',
+  description: 'Recovers a previously created intake for the caller-verified organization by its request reference.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeByRequestReferenceDefinition)],
+  request: { params: requestReferencePathParamSchema },
+  responses: {
+    ...policyResponses,
+    ...publicIntakeDomainResponses,
+    200: {
+      description: 'Intake recovered successfully',
+      content: { 'application/json': { schema: intakeValidations.createPracticeClientIntakeResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(getIntakeByRequestReferenceRoute, getIntakeByRequestReferenceDefinition);
+
+/**
+ * GET /intakes/{uuid}/status — human or anonymous follow-up, keyed by intake
+ * UUID rather than the request reference, so the trusted header is required
+ * here and compared against the intake's stored `krabiclaw_request_key`
+ * (KTD6) — see `intakes.handlers.ts`.
+ */
+const getIntakeStatusDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'get',
+  path: '/intakes/{uuid}/status',
+  scope: 'legal:intakes',
+  actorPolicy: 'human-or-anonymous',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'required',
+};
+
+const getIntakeStatusRoute = routeBuilder.build({
+  method: getIntakeStatusDefinition.method,
+  path: getIntakeStatusDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Get practice client intake status (KrabiClaw facade)',
+  description: 'Retrieves the current status of an intake, authorized by the trusted request reference.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeStatusDefinition)],
+  request: { params: intakeUuidParamSchema },
+  responses: {
+    ...policyResponses,
+    ...publicIntakeDomainResponses,
+    200: {
+      description: 'Status retrieved successfully',
+      content: { 'application/json': { schema: intakeValidations.practiceClientIntakeStatusResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(getIntakeStatusRoute, getIntakeStatusDefinition);
+
+/**
+ * GET /intakes — staff-only (human actor), preserves the shared Blawby
+ * offset pagination envelope (R16) via `listIntakesResponseSchema`.
+ */
+const listIntakesDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'get',
+  path: '/intakes',
+  scope: 'legal:intakes',
+  actorPolicy: 'human',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'none',
+};
+
+// oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `.shape` is Zod's built-in ZodObject API, not a renameable local symbol.
+const listIntakesQueryFacadeSchema = krabiclawStrictSchema(intakeValidations.listIntakesQuerySchema.shape);
+
+const listIntakesRoute = routeBuilder.build({
+  method: listIntakesDefinition.method,
+  path: listIntakesDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'List practice client intakes (KrabiClaw facade)',
+  description: 'Retrieves a paginated list of client intakes for the caller-verified organization. Staff-only.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(listIntakesDefinition)],
+  request: { query: listIntakesQueryFacadeSchema },
+  responses: {
+    ...policyResponses,
+    ...staffIntakeDomainResponses,
+    200: {
+      description: 'List of intakes retrieved successfully',
+      content: { 'application/json': { schema: intakeValidations.listIntakesResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(listIntakesRoute, listIntakesDefinition);
+
+/**
+ * GET /intakes/{uuid} — staff-only. Registered AFTER
+ * `getIntakeSettingsRoute` (see the file-level doc comment above) so
+ * `/intakes/settings` cannot be captured by this route's `{uuid}` param.
+ */
+const getIntakeDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'get',
+  path: '/intakes/{uuid}',
+  scope: 'legal:intakes',
+  actorPolicy: 'human',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'none',
+};
+
+const getIntakeRoute = routeBuilder.build({
+  method: getIntakeDefinition.method,
+  path: getIntakeDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Get a practice client intake (KrabiClaw facade)',
+  description: 'Retrieves a single client intake by UUID for the caller-verified organization. Staff-only.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeDefinition)],
+  request: { params: intakeUuidParamSchema },
+  responses: {
+    ...policyResponses,
+    ...staffIntakeDomainResponses,
+    200: {
+      description: 'Intake retrieved successfully',
+      content: { 'application/json': { schema: intakeValidations.practiceClientIntakeStatusResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(getIntakeRoute, getIntakeDefinition);
+
+/** PATCH /intakes/{uuid}/triage — staff-only. */
+const patchIntakeTriageDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'patch',
+  path: '/intakes/{uuid}/triage',
+  scope: 'legal:intakes',
+  actorPolicy: 'human',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-without-payment',
+  requestReferencePolicy: 'none',
+};
+
+/** Mirrors `intakeValidations.updateIntakeTriageStatusSchema`'s shape and `superRefine`, rebuilt on top of `krabiclawStrictSchema` (KTD5) since that schema is a `ZodEffects`, not a plain object, and has no `.shape` to reuse directly. */
+const triageStatusFacadeSchema = krabiclawStrictSchema({
+  status: z.enum(['accepted', 'declined']),
+  reason: z.string().max(1000).optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === 'declined' && !value.reason?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['reason'], message: 'Reason is required when declining an intake' });
+  }
+});
+
+const patchIntakeTriageRoute = routeBuilder.build({
+  method: patchIntakeTriageDefinition.method,
+  path: patchIntakeTriageDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Update intake triage status (KrabiClaw facade)',
+  description: 'Sets the practice triage decision for an intake. Staff-only.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(patchIntakeTriageDefinition)],
+  request: {
+    params: intakeUuidParamSchema,
+    body: { content: { 'application/json': { schema: triageStatusFacadeSchema } } },
+  },
+  responses: {
+    ...policyResponses,
+    ...staffIntakeDomainResponses,
+    200: {
+      description: 'Triage status updated successfully',
+      content: { 'application/json': { schema: intakeValidations.updateIntakeTriageStatusResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(patchIntakeTriageRoute, patchIntakeTriageDefinition);
+
+/**
+ * POST /intakes/{uuid}/checkout-session — human or anonymous follow-up,
+ * intake-payment rollout group. Destination-charge Stripe operation only
+ * (`createCheckoutSession`, U1-era) — no new payment lifecycle is added here.
+ */
+const postCheckoutSessionDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'post',
+  path: '/intakes/{uuid}/checkout-session',
+  scope: 'legal:intakes',
+  actorPolicy: 'human-or-anonymous',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-payment',
+  requestReferencePolicy: 'required',
+};
+
+const postCheckoutSessionRoute = routeBuilder.build({
+  method: postCheckoutSessionDefinition.method,
+  path: postCheckoutSessionDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Create a Checkout Session for an intake (KrabiClaw facade)',
+  description: 'Creates a Stripe Checkout Session for an existing intake, authorized by the trusted request reference.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(postCheckoutSessionDefinition)],
+  request: { params: intakeUuidParamSchema },
+  responses: {
+    ...policyResponses,
+    ...publicIntakePaymentDomainResponses,
+    201: {
+      description: 'Checkout Session created successfully',
+      content: {
+        'application/json': { schema: intakeValidations.createPracticeClientIntakeCheckoutSessionResponseSchema },
+      },
+    },
+  },
+});
+registerFacadeRoute(postCheckoutSessionRoute, postCheckoutSessionDefinition);
+
+/**
+ * GET /intakes/{uuid}/post-pay/status — human or anonymous follow-up,
+ * intake-payment rollout group. Delegates entirely to U1's
+ * `verifyPostPayConsistency` (R10), a non-mutating correlation check — no
+ * new payment lifecycle is added here.
+ */
+const getPostPayStatusDefinition: KrabiClawFacadeRouteDefinition = {
+  method: 'get',
+  path: '/intakes/{uuid}/post-pay/status',
+  scope: 'legal:intakes',
+  actorPolicy: 'human-or-anonymous',
+  rateFamily: 'intake',
+  rolloutGroup: 'intake-payment',
+  requestReferencePolicy: 'required',
+};
+
+// oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `.shape` is Zod's built-in ZodObject API, not a renameable local symbol.
+const postPayStatusQueryFacadeSchema = krabiclawStrictSchema(intakeValidations.checkoutSessionStatusQuerySchema.shape);
+
+const getPostPayStatusRoute = routeBuilder.build({
+  method: getPostPayStatusDefinition.method,
+  path: getPostPayStatusDefinition.path,
+  tags: ['KrabiClaw Facade', 'Intakes'],
+  summary: 'Get post-pay status for an intake (KrabiClaw facade)',
+  description:
+    'Verifies that organization, intake UUID, Stripe Checkout Session, and the trusted request reference all describe the same intake before returning payment status.',
+  middleware: [createKrabiClawFacadeRouteMiddleware(getPostPayStatusDefinition)],
+  request: { params: intakeUuidParamSchema, query: postPayStatusQueryFacadeSchema },
+  responses: {
+    ...policyResponses,
+    ...publicIntakePaymentDomainResponses,
+    200: {
+      description: 'Post-pay status retrieved',
+      content: { 'application/json': { schema: intakeValidations.practiceClientIntakePostPayStatusResponseSchema } },
+    },
+  },
+});
+registerFacadeRoute(getPostPayStatusRoute, getPostPayStatusDefinition);
+
+export {
+  getIntakeSettingsDefinition,
+  getIntakeSettingsRoute,
+  postIntakesDefinition,
+  postIntakesRoute,
+  createIntakeFacadeSchema,
+  getIntakeByRequestReferenceDefinition,
+  getIntakeByRequestReferenceRoute,
+  getIntakeStatusDefinition,
+  getIntakeStatusRoute,
+  listIntakesDefinition,
+  listIntakesRoute,
+  getIntakeDefinition,
+  getIntakeRoute,
+  patchIntakeTriageDefinition,
+  patchIntakeTriageRoute,
+  triageStatusFacadeSchema,
+  postCheckoutSessionDefinition,
+  postCheckoutSessionRoute,
+  getPostPayStatusDefinition,
+  getPostPayStatusRoute,
+};

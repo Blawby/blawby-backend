@@ -18,7 +18,11 @@ const errorResponse = (description: string) => ({
 
 /** Practice and Connect: the requested resource does not exist for this organization. */
 export const krabiclawResourceNotFoundResponse = errorResponse('The requested resource does not exist');
-/** Practice and Connect: the request conflicts with existing state. */
+/** Practice, Connect, and staff intake: the request conflicts with existing state. */
 export const krabiclawStateConflictResponse = errorResponse('The request conflicts with existing state');
-/** Connect only: a prerequisite for this operation was not met. */
+/** Connect and intake: a prerequisite for this operation was not met. */
 export const krabiclawPrerequisiteFailedResponse = errorResponse('A prerequisite for this operation was not met');
+/** Public intake only: a same-key request conflicts with a prior recorded intake or checkout session. */
+export const krabiclawRequestConflictResponse = errorResponse('The request conflicts with a prior recorded request');
+/** Staff intake only: distinct from the policy layer's `facade_forbidden` — the authenticated staff actor may not access this specific resource. */
+export const krabiclawStaffForbiddenResponse = errorResponse('Access to this resource is not permitted');

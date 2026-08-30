@@ -22,6 +22,17 @@ import {
   postConnectedAccountsHandler,
   postPracticeDetailsHandler,
 } from '@/modules/krabiclaw-integration/handlers';
+import {
+  getIntakeByRequestReferenceHandler,
+  getIntakeHandler,
+  getIntakeSettingsHandler,
+  getIntakeStatusHandler,
+  getPostPayStatusHandler,
+  listIntakesHandler,
+  patchIntakeTriageHandler,
+  postCheckoutSessionHandler,
+  postIntakesHandler,
+} from '@/modules/krabiclaw-integration/intakes.handlers';
 import { krabiclawFacadeValidationHook } from '@/modules/krabiclaw-integration/router/facade-validation-hook';
 import {
   getConnectAccountRoute,
@@ -29,6 +40,17 @@ import {
   postAccountSessionRoute,
   postConnectedAccountsRoute,
 } from '@/modules/krabiclaw-integration/routes/connect.routes';
+import {
+  getIntakeByRequestReferenceRoute,
+  getIntakeRoute,
+  getIntakeSettingsRoute,
+  getIntakeStatusRoute,
+  getPostPayStatusRoute,
+  listIntakesRoute,
+  patchIntakeTriageRoute,
+  postCheckoutSessionRoute,
+  postIntakesRoute,
+} from '@/modules/krabiclaw-integration/routes/intakes.routes';
 import {
   getPracticeDetailsRoute,
   patchPracticeDetailsRoute,
@@ -235,6 +257,24 @@ app.openapi(postConnectedAccountsRoute, postConnectedAccountsHandler);
 app.openapi(getConnectStatusRoute, getConnectStatusHandler);
 app.openapi(postAccountSessionRoute, postAccountSessionHandler);
 app.openapi(getConnectAccountRoute, getConnectAccountHandler);
+
+/**
+ * U4 (this unit): intakes. `getIntakeSettingsRoute` (`/intakes/settings`)
+ * MUST be registered before `getIntakeRoute` (`/intakes/{uuid}`) — both are
+ * two-segment GET routes and Hono matches in registration order, not by
+ * static-vs-dynamic specificity (see `intakes.routes.ts`'s file-level doc
+ * comment and `mountKrabiClawFacadeTerminalHandlers`'s doc comment above for
+ * why this ordering constraint exists in Hono generally).
+ */
+app.openapi(getIntakeSettingsRoute, getIntakeSettingsHandler);
+app.openapi(postIntakesRoute, postIntakesHandler);
+app.openapi(getIntakeByRequestReferenceRoute, getIntakeByRequestReferenceHandler);
+app.openapi(getIntakeStatusRoute, getIntakeStatusHandler);
+app.openapi(listIntakesRoute, listIntakesHandler);
+app.openapi(getIntakeRoute, getIntakeHandler);
+app.openapi(patchIntakeTriageRoute, patchIntakeTriageHandler);
+app.openapi(postCheckoutSessionRoute, postCheckoutSessionHandler);
+app.openapi(getPostPayStatusRoute, getPostPayStatusHandler);
 
 mountKrabiClawFacadeTerminalHandlers(app);
 
