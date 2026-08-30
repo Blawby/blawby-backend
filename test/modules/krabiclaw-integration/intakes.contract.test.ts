@@ -10,7 +10,6 @@ import { createIntake } from '@/modules/practice-client-intakes/operations/creat
 import { getIntakeById } from '@/modules/practice-client-intakes/operations/get-intake-by-id.operation';
 import { getIntakeByRequestReference } from '@/modules/practice-client-intakes/operations/get-intake-by-request-reference.operation';
 import { getIntakeSettings } from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
-import { getIntakeStatus } from '@/modules/practice-client-intakes/operations/get-intake-status.operation';
 import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/operations/intake-actor-context';
 import { listIntakes } from '@/modules/practice-client-intakes/operations/list-intakes.operation';
 import { updateIntakeTriageStatus } from '@/modules/practice-client-intakes/operations/update-intake-triage-status.operation';
@@ -125,9 +124,6 @@ vi.mock('@/modules/practice-client-intakes/operations/create-intake.operation', 
 }));
 vi.mock('@/modules/practice-client-intakes/operations/get-intake-by-request-reference.operation', () => ({
   getIntakeByRequestReference: vi.fn(),
-}));
-vi.mock('@/modules/practice-client-intakes/operations/get-intake-status.operation', () => ({
-  getIntakeStatus: vi.fn(),
 }));
 vi.mock('@/modules/practice-client-intakes/operations/intake-actor-context', () => ({
   getActorAccessibleIntake: vi.fn(),
@@ -251,7 +247,6 @@ beforeEach(() => {
   vi.mocked(getIntakeSettings).mockReset();
   vi.mocked(createIntake).mockReset();
   vi.mocked(getIntakeByRequestReference).mockReset();
-  vi.mocked(getIntakeStatus).mockReset();
   vi.mocked(getActorAccessibleIntake).mockReset();
   vi.mocked(listIntakes).mockReset();
   vi.mocked(getIntakeById).mockReset();
@@ -264,7 +259,7 @@ beforeEach(() => {
 });
 
 describe('GET /intakes/settings', () => {
-  it('reaches getIntakeSettings with subscriptionPolicy bypass and returns its result for a human actor', async () => {
+  it('reaches getIntakeSettings with subscriptionPolicy enforce (matches the owning route, no revenue-gate bypass) and returns its result for a human actor', async () => {
     vi.mocked(getIntakeSettings).mockResolvedValue({
       organization: { id: 'local-ext-org-1', name: 'Acme Legal', slug: 'acme-legal' },
       settings: { payment_link_enabled: true, consultation_fee: 15000 },
@@ -286,7 +281,7 @@ describe('GET /intakes/settings', () => {
 
     expect(res.status).toBe(200);
     expect(getIntakeSettings).toHaveBeenCalledWith(
-      { organizationId: 'local-ext-org-1', templateSlug: undefined, subscriptionPolicy: 'bypass' },
+      { organizationId: 'local-ext-org-1', templateSlug: undefined, subscriptionPolicy: 'enforce' },
       expect.any(Object)
     );
   });
@@ -359,10 +354,27 @@ describe('POST /intakes', () => {
       expect.objectContaining({
         organizationId: 'local-ext-org-1',
         requestKey: REQUEST_REFERENCE_A,
-        subscriptionPolicy: 'bypass',
+        subscriptionPolicy: 'enforce',
       }),
       expect.any(Object)
     );
+  });
+
+  it('never forwards x-forwarded-for as clientIp (R27: no browser-forwarding-header trust outside the engagement-acceptance route)', async () => {
+    vi.mocked(createIntake).mockResolvedValue(createIntakeResponseFixture);
+
+    await krabiclawIntegrationApp.request('/intakes', {
+      method: 'POST',
+      headers: {
+        ...anonymousHeaders('ext-org-1', { 'x-krabiclaw-request-reference': REQUEST_REFERENCE_A }),
+        'content-type': 'application/json',
+        'x-forwarded-for': '203.0.113.7',
+      },
+      body: JSON.stringify({ amount: 0, email: 'client@example.test', name: 'Jane Client' }),
+    });
+
+    const [[callParams]] = vi.mocked(createIntake).mock.calls;
+    expect(callParams.data).not.toHaveProperty('clientIp');
   });
 
   it('plumbs the same request reference through on a same-key retry, returning one recovered intake both times (concurrent-safe idempotency)', async () => {
@@ -390,7 +402,17 @@ describe('POST /intakes', () => {
     }
   });
 
-  it('a same-key different-payload conflict is the owning operation reviewed conflict, reserialized as validation_failed (400) — not silently accepted', async () => {
+  /**
+   * Renamed from an earlier ("same-key different-payload conflict") title
+   * that didn't match reality (task review Important #5) — confirmed against
+   * `create-intake.operation.ts`'s own `findRecoverableIntakeByRequestKey`
+   * that a same-key retry ALWAYS recovers the original result regardless of
+   * payload differences; there is no same-key/different-payload conflict
+   * anywhere in this operation to preserve. This test only proves an
+   * ordinary validation failure (unrelated to the request key) is
+   * reserialized correctly.
+   */
+  it('a create-intake validation failure unrelated to the request key (e.g. invalid practice service) is reserialized as validation_failed (400)', async () => {
     vi.mocked(createIntake).mockRejectedValue(new HTTPException(400, { message: 'Invalid practice service' }));
 
     const res = await krabiclawIntegrationApp.request('/intakes', {
@@ -450,21 +472,86 @@ describe('GET /intakes/{uuid}/status — anonymous follow-up authorization (KTD6
     expect(getActorAccessibleIntake).not.toHaveBeenCalled();
   });
 
-  it('returns status when the trusted request reference matches the intake', async () => {
+  it('returns status when the trusted request reference matches the intake, formatted via the real (unmocked) intakeSharedHelpers formatter', async () => {
     vi.mocked(getActorAccessibleIntake).mockResolvedValue(
-      buildIntakeFixture({ krabiclaw_request_key: REQUEST_REFERENCE_A })
+      buildIntakeFixture({ krabiclaw_request_key: REQUEST_REFERENCE_A, status: 'succeeded' })
     );
-    vi.mocked(getIntakeStatus).mockResolvedValue(intakeStatusResponseFixture);
 
     const res = await krabiclawIntegrationApp.request(`/intakes/${INTAKE_UUID}/status`, {
       headers: anonymousHeaders('ext-org-1', { 'x-krabiclaw-request-reference': REQUEST_REFERENCE_A }),
     });
 
     expect(res.status).toBe(200);
-    expect(getIntakeStatus).toHaveBeenCalledWith({ uuid: INTAKE_UUID }, expect.objectContaining({ isStaff: true }));
+    // SAFETY: the 200 status assertion above confirms `getIntakeStatusHandler` returned
+    // `c.json(result, 200)` with `result` built by the real (unmocked)
+    // `intakeSharedHelpers.formatIntakeStatusResponse`, which always includes `uuid` and `status` —
+    // The shape asserted here is guaranteed.
+    const body = (await res.json()) as { uuid: string; status: string };
+    expect(body.uuid).toBe(INTAKE_UUID);
+    expect(body.status).toBe('succeeded');
   });
 
-  it('rejects a wrong request reference for a matching intake UUID with the uniform 404, never calling the status operation', async () => {
+  /**
+   * Task review Critical fix: `getIntakeStatusHandler` used to call the
+   * non-facade `getIntakeStatus` operation with `isStaff: true`, which flows
+   * into `formatIntakeStatusResponse({ isAdmin: ctx.isStaff })` and renders
+   * the full staff/admin projection — including `transcript_summary` and
+   * every `enrichment_*` field — to this route's `human-or-anonymous`
+   * callers. The handler no longer calls `getIntakeStatus` at all; it formats
+   * directly via `intakeSharedHelpers.formatIntakeStatusResponse` with a
+   * hard-coded `isAdmin: false`. This test proves the admin projection never
+   * reaches the wire, using a fixture where every admin-only field is
+   * populated (not merely absent) so a regression back to `isAdmin: true`
+   * would be caught even if the underlying row happened to have empty
+   * admin fields in a lazier test.
+   */
+  it('never renders the staff/admin projection, even when the intake row carries populated admin-only fields', async () => {
+    const sensitiveIntake = buildIntakeFixture({
+      krabiclaw_request_key: REQUEST_REFERENCE_A,
+      transcript_summary: 'Sensitive AI-generated transcript summary',
+      enrichment_status: 'succeeded',
+      enrichment_version: 3,
+      enrichment_attempt_count: 2,
+      enrichment_model: 'gpt-4o',
+      enrichment_error_code: 'none',
+      enrichment_requested_at: new Date('2024-01-05T00:00:00.000Z'),
+      enriched_at: new Date('2024-01-05T01:00:00.000Z'),
+      conversation_id: '22222222-2222-4222-8222-222222222222',
+      address_id: '33333333-3333-4333-8333-333333333333',
+      metadata: { email: 'real-client@example.test', name: 'Real Client Name', phone: '555-1234' },
+    });
+    vi.mocked(getActorAccessibleIntake).mockResolvedValue(sensitiveIntake);
+
+    const res = await krabiclawIntegrationApp.request(`/intakes/${INTAKE_UUID}/status`, {
+      headers: anonymousHeaders('ext-org-1', { 'x-krabiclaw-request-reference': REQUEST_REFERENCE_A }),
+    });
+
+    expect(res.status).toBe(200);
+    // SAFETY: the 200 status assertion above confirms this is a JSON object response from
+    // `c.json(...)` — narrowing to an indexable record is safe for the `not.toHaveProperty` checks
+    // Below, which do not depend on any specific field's value type.
+    const body = (await res.json()) as Record<string, unknown>;
+    for (const adminOnlyField of [
+      'transcript_summary',
+      'enrichment_status',
+      'enrichment_version',
+      'enrichment_attempt_count',
+      'enrichment_model',
+      'enrichment_error_code',
+      'enrichment_requested_at',
+      'enriched_at',
+      'conversation_id',
+      'address_id',
+    ]) {
+      expect(body).not.toHaveProperty(adminOnlyField);
+    }
+    // The redacted `{ email: '', name: '' }` shape — never the real client contact info — for a
+    // Non-owning, non-admin caller (`isAuthorizedIntakeView` returns false with `isAdmin: false`
+    // And no matching `requestingUserId`).
+    expect(body.metadata).toEqual({ email: '', name: '' });
+  });
+
+  it('rejects a wrong request reference for a matching intake UUID with the uniform 404, never rendering intake details', async () => {
     vi.mocked(getActorAccessibleIntake).mockResolvedValue(
       buildIntakeFixture({ krabiclaw_request_key: REQUEST_REFERENCE_A })
     );
@@ -480,7 +567,6 @@ describe('GET /intakes/{uuid}/status — anonymous follow-up authorization (KTD6
     // Reviewed `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
     const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe('resource_not_found');
-    expect(getIntakeStatus).not.toHaveBeenCalled();
   });
 
   it('a cross-organization intake (tenant mismatch) also returns the uniform 404 — indistinguishable from a wrong reference (R14)', async () => {
@@ -528,7 +614,6 @@ describe('GET /intakes/{uuid}/status — anonymous follow-up authorization (KTD6
     vi.mocked(getActorAccessibleIntake).mockResolvedValue(
       buildIntakeFixture({ krabiclaw_request_key: REQUEST_REFERENCE_A })
     );
-    vi.mocked(getIntakeStatus).mockResolvedValue(intakeStatusResponseFixture);
 
     const res = await krabiclawIntegrationApp.request(`/intakes/${INTAKE_UUID}/status`, {
       headers: humanHeaders('ext-org-1', { 'x-krabiclaw-request-reference': REQUEST_REFERENCE_A }),

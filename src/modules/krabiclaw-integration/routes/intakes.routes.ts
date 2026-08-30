@@ -44,16 +44,33 @@ const policyResponses = {
   429: krabiclawRateLimitedResponse,
 };
 
-/** Public intake without payment: ownership/request-reference/existence mismatches are all indistinguishable 404s (R14). */
-const publicIntakeDomainResponses = {
+/**
+ * Public intake, ownership/request-reference/existence mismatches only —
+ * these two handlers (`status`, recovery-by-reference) only ever produce a
+ * 404 (`mapPublicIntakeAccessError`, `intakes.handlers.ts`), all
+ * indistinguishable per R14.
+ */
+const publicIntakeNotFoundOnlyResponses = {
   404: krabiclawResourceNotFoundResponse,
 };
 
-/** Public intake payment: adds the two payment-specific reviewed codes from the Reviewed Error Contract table. */
-const publicIntakePaymentDomainResponses = {
+/** Public intake settings: `mapIntakeSettingsOperationError` only ever produces 404 or 422 — no 409 case exists for this read-only route. */
+const publicIntakeSettingsResponses = {
+  404: krabiclawResourceNotFoundResponse,
+  422: krabiclawPrerequisiteFailedResponse,
+};
+
+/** Public intake create/checkout: the full set of reviewed codes their handlers' error mappers can produce (404/409/422), per the Reviewed Error Contract table. */
+const publicIntakeFullDomainResponses = {
   404: krabiclawResourceNotFoundResponse,
   409: krabiclawRequestConflictResponse,
   422: krabiclawPrerequisiteFailedResponse,
+};
+
+/** Public intake post-pay/status: `mapPostPayOperationError` only ever produces 404 or 409 — `verifyPostPayConsistency` has no 422 case. */
+const publicPostPayResponses = {
+  404: krabiclawResourceNotFoundResponse,
+  409: krabiclawRequestConflictResponse,
 };
 
 /**
@@ -111,7 +128,7 @@ const getIntakeSettingsRoute = routeBuilder.build({
   request: { query: intakeSettingsQueryFacadeSchema },
   responses: {
     ...policyResponses,
-    ...publicIntakePaymentDomainResponses,
+    ...publicIntakeSettingsResponses,
     200: {
       description: 'Intake settings retrieved successfully',
       content: { 'application/json': { schema: intakeValidations.practiceClientIntakeSettingsResponseSchema } },
@@ -167,7 +184,7 @@ const postIntakesRoute = routeBuilder.build({
   },
   responses: {
     ...policyResponses,
-    ...publicIntakeDomainResponses,
+    ...publicIntakeFullDomainResponses,
     201: {
       description: 'Intake created or recovered successfully',
       content: { 'application/json': { schema: intakeValidations.createPracticeClientIntakeResponseSchema } },
@@ -204,7 +221,7 @@ const getIntakeByRequestReferenceRoute = routeBuilder.build({
   request: { params: requestReferencePathParamSchema },
   responses: {
     ...policyResponses,
-    ...publicIntakeDomainResponses,
+    ...publicIntakeNotFoundOnlyResponses,
     200: {
       description: 'Intake recovered successfully',
       content: { 'application/json': { schema: intakeValidations.createPracticeClientIntakeResponseSchema } },
@@ -239,7 +256,7 @@ const getIntakeStatusRoute = routeBuilder.build({
   request: { params: intakeUuidParamSchema },
   responses: {
     ...policyResponses,
-    ...publicIntakeDomainResponses,
+    ...publicIntakeNotFoundOnlyResponses,
     200: {
       description: 'Status retrieved successfully',
       content: { 'application/json': { schema: intakeValidations.practiceClientIntakeStatusResponseSchema } },
@@ -386,7 +403,7 @@ const postCheckoutSessionRoute = routeBuilder.build({
   request: { params: intakeUuidParamSchema },
   responses: {
     ...policyResponses,
-    ...publicIntakePaymentDomainResponses,
+    ...publicIntakeFullDomainResponses,
     201: {
       description: 'Checkout Session created successfully',
       content: {
@@ -427,7 +444,7 @@ const getPostPayStatusRoute = routeBuilder.build({
   request: { params: intakeUuidParamSchema, query: postPayStatusQueryFacadeSchema },
   responses: {
     ...policyResponses,
-    ...publicIntakePaymentDomainResponses,
+    ...publicPostPayResponses,
     200: {
       description: 'Post-pay status retrieved',
       content: { 'application/json': { schema: intakeValidations.practiceClientIntakePostPayStatusResponseSchema } },

@@ -1,6 +1,7 @@
 import { z } from '@hono/zod-openapi';
 import { getLogger } from '@logtape/logtape';
 import type { Context, MiddlewareHandler } from 'hono';
+import { routePath } from 'hono/route';
 
 import {
   CLIENT_FAMILY_CEILING,
@@ -219,7 +220,17 @@ export const createKrabiClawFacadeRouteMiddleware =
         resolved_organization_id: identity.organizationId,
         resolved_user_id: identity.userId,
         method: c.req.method,
-        path: c.req.path,
+        /**
+         * R23: logs must exclude request references. `GET
+         * /intakes/requests/{request_id}` carries its request reference as a
+         * literal path SEGMENT (not a header), so `c.req.path`'s populated
+         * value would put that reference straight into this audit event.
+         * `routePath(c)` (from `hono/route`) returns the registered route
+         * PATTERN instead (e.g. `/intakes/requests/:request_id`), never the
+         * matched parameter values — safe to log for every route, not just
+         * this one.
+         */
+        path: routePath(c),
       },
       { actorId: identity.userId ?? 'api', organizationId: identity.organizationId, critical: true }
     );

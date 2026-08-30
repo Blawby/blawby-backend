@@ -18,12 +18,12 @@ import { createIntake } from '@/modules/practice-client-intakes/operations/creat
 import { getIntakeByRequestReference } from '@/modules/practice-client-intakes/operations/get-intake-by-request-reference.operation';
 import { getIntakeById } from '@/modules/practice-client-intakes/operations/get-intake-by-id.operation';
 import { getIntakeSettings } from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
-import { getIntakeStatus } from '@/modules/practice-client-intakes/operations/get-intake-status.operation';
 import {
   getActorAccessibleIntake,
   type IntakeActorContext,
 } from '@/modules/practice-client-intakes/operations/intake-actor-context';
 import { listIntakes } from '@/modules/practice-client-intakes/operations/list-intakes.operation';
+import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { updateIntakeTriageStatus } from '@/modules/practice-client-intakes/operations/update-intake-triage-status.operation';
 import { verifyPostPayConsistency } from '@/modules/practice-client-intakes/operations/verify-post-pay-consistency.operation';
 import { extractOriginFromReferer } from '@/shared/utils/env';
@@ -103,12 +103,29 @@ const mapIntakeSettingsOperationError = (error: unknown): ReviewedDomainErrorMap
   return null;
 };
 
+/**
+ * `createIntake` can throw everything `getIntakeSettings` throws (it calls that operation
+ * internally whenever payment is required) plus its own 400s — every status the public intake
+ * family's Reviewed Error Contract lists (404/409/422, falling back to 400 validation_failed)
+ * must be enumerated explicitly here, not collapsed into a single generic 400 (task review
+ * Important #3: a 403 "no active subscription"/"connected account not ready" rejection was
+ * previously mislabeled `validation_failed` instead of `prerequisite_failed`).
+ */
 const mapCreateIntakeOperationError = (error: unknown): ReviewedDomainErrorMapping | null => {
   if (!(error instanceof HTTPException)) {
     return null;
   }
   if (error.status === 404) {
     return PUBLIC_INTAKE_NOT_FOUND;
+  }
+  if (error.status === 403) {
+    return { status: 422, code: 'prerequisite_failed', message: 'Practice intake is not ready to accept submissions' };
+  }
+  if (error.status === 409) {
+    return { status: 409, code: 'request_conflict', message: 'Intake request conflicts with a prior recorded request' };
+  }
+  if (error.status === 422) {
+    return { status: 422, code: 'prerequisite_failed', message: 'Practice intake is not ready to accept submissions' };
   }
   if (error.status >= 400 && error.status < 500) {
     return { status: 400, code: 'validation_failed', message: 'Intake request could not be validated' };
@@ -166,8 +183,22 @@ const mapStaffIntakeOperationError = (error: unknown): ReviewedDomainErrorMappin
   return null;
 };
 
+/**
+ * No `clientIp` (task review Important #2): R27 restricts trusted
+ * originating-client-IP handling to the engagement-acceptance route via its
+ * own dedicated, explicitly-validated header
+ * (`x-krabiclaw-originating-client-ip`) and forbids accepting a browser
+ * forwarding header on any other route. `x-forwarded-for` on a facade
+ * request reflects the KrabiClaw BFF's own network position (or an
+ * attacker-injected value if KrabiClaw ever forwards it verbatim), never the
+ * genuine end user — persisting it onto `practice_client_intakes.client_ip`
+ * would record an untrustworthy value on a legal record. `userAgent`/`origin`
+ * are kept: neither is a network-trust decision, both are optional metadata
+ * used the same way the existing authenticated Blawby route already uses
+ * them (tracking / Stripe redirect origin), not a security boundary R27
+ * governs.
+ */
 const getCreateIntakeRequestMetadata = (c: Context) => ({
-  clientIp: c.req.header('x-forwarded-for') ?? c.req.header('remote-addr'),
   userAgent: c.req.header('user-agent'),
   origin: c.req.header('origin') ?? extractOriginFromReferer(c.req.header('referer')),
 });
@@ -191,11 +222,19 @@ const getIntakeSettingsHandler: AppRouteHandler<typeof getIntakeSettingsRoute> =
   const ctx = c.get('krabiclawFacadeRequestContext')!;
   const { template_slug } = c.req.valid('query');
   try {
+    /**
+     * `subscriptionPolicy: 'enforce'` — task review Important #1: no plan
+     * document (brief, global-context.md, planning-context.md) states the
+     * facade should exempt itself from Blawby's local subscription gate.
+     * The owning public route (`intake-creation.service.ts`) always passes
+     * `'enforce'`; the facade must match it, not silently grant KrabiClaw
+     * callers a revenue-gate bypass the ordinary route doesn't get.
+     */
     const result = await getIntakeSettings(
       {
         organizationId: ctx.legalOperationContext.organizationId,
         templateSlug: template_slug,
-        subscriptionPolicy: 'bypass',
+        subscriptionPolicy: 'enforce',
       },
       ctx.legalOperationContext
     );
@@ -214,12 +253,13 @@ const postIntakesHandler: AppRouteHandler<typeof postIntakesRoute> = async (c) =
   const requestKey = requireRequestReference(ctx.requestReference);
   const body = c.req.valid('json');
   try {
+    // See `getIntakeSettingsHandler`'s comment on `subscriptionPolicy: 'enforce'` — same reasoning here.
     const result = await createIntake(
       {
         organizationId: ctx.legalOperationContext.organizationId,
         data: { ...body, ...getCreateIntakeRequestMetadata(c) },
         requestKey,
-        subscriptionPolicy: 'bypass',
+        subscriptionPolicy: 'enforce',
       },
       ctx.legalOperationContext
     );
@@ -256,12 +296,23 @@ const getIntakeStatusHandler: AppRouteHandler<typeof getIntakeStatusRoute> = asy
   const requestReference = requireRequestReference(ctx.requestReference);
   const { uuid } = c.req.valid('param');
   /**
-   * `isStaff: true` here does not mean "this actor is Blawby staff" — it
-   * means "this request has already been authorized by a mechanism other
-   * than intake-row `metadata.user_id` ownership" (KTD6): the trusted
-   * request-reference comparison immediately below IS that mechanism for
-   * facade public-intake callers, replacing the CASL-derived `isStaff` flag
-   * that authorized non-facade staff callers already assign it.
+   * `isStaff: true` here ONLY bypasses `getActorAccessibleIntake`'s
+   * `metadata.user_id` ownership check — the trusted request-reference
+   * comparison immediately below is this route's actual authorization
+   * mechanism (KTD6), replacing that ownership check for a facade caller.
+   *
+   * Task review Critical fix: this flag must NEVER also reach a response
+   * formatter. `getIntakeStatus` (the non-facade operation) passes
+   * `isAdmin: ctx.isStaff` straight into `formatIntakeStatusResponse`, which
+   * renders the full staff/admin projection (`transcript_summary`,
+   * every `enrichment_*` field, `conversation_id`, `address_id`, and the
+   * unredacted `metadata` block) whenever `isAdmin` is true — regardless of
+   * why `isStaff` was set. Because this route's `actorPolicy` is
+   * `human-or-anonymous`, reusing `getIntakeStatus` here would leak the
+   * staff-only projection to an anonymous caller. So this handler does NOT
+   * call `getIntakeStatus` at all — it formats the response directly via
+   * `intakeSharedHelpers.formatIntakeStatusResponse` with an explicit,
+   * hard-coded `isAdmin: false`, independent of `actorCtx.isStaff`.
    */
   const actorCtx: IntakeActorContext = { ...ctx.legalOperationContext, isStaff: true };
   try {
@@ -269,7 +320,7 @@ const getIntakeStatusHandler: AppRouteHandler<typeof getIntakeStatusRoute> = asy
     if (intake.krabiclaw_request_key !== requestReference) {
       return reviewedDomainErrorResponse(c, PUBLIC_INTAKE_NOT_FOUND);
     }
-    const result = await getIntakeStatus({ uuid }, actorCtx);
+    const result = intakeSharedHelpers.formatIntakeStatusResponse(intake, { isAdmin: false });
     return c.json(result, 200);
   } catch (error) {
     const mapped = mapPublicIntakeAccessError(error);
