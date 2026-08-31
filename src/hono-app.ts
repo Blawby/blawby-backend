@@ -56,13 +56,18 @@ app.use(
       const sanitizedPath = isFacadeRequest ? routePath(c as Context) : c.req.path;
       return {
         method: c.req.method,
-        url: sanitizedPath,
+        // Non-facade requests keep the full URL (with query string), matching the built-in
+        // `combined` format exactly; only facade requests are replaced with the route pattern.
+        url: isFacadeRequest ? sanitizedPath : c.req.url,
         path: sanitizedPath,
         status: c.res.status,
         responseTime,
         contentLength: c.res.headers.get('content-length') ?? undefined,
         userAgent: c.req.header('user-agent'),
-        referrer: c.req.header('referrer') ?? c.req.header('referer'),
+        // `||`, not `??`, to match the built-in `combined` format's fallback exactly — an
+        // Empty-string `referrer` header must still fall through to `referer`.
+        // oxlint-disable-next-line typescript/prefer-nullish-coalescing
+        referrer: c.req.header('referrer') || c.req.header('referer'),
       };
     },
   })

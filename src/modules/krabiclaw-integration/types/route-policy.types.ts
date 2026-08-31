@@ -33,7 +33,7 @@ export type KrabiClawRequestReferencePolicy = 'none' | 'optional' | 'required';
 
 /**
  * One authoritative, immutable registry entry (KTD2). Register a route with
- * `defineFacadeRoute` (see `route-registry.ts`) and pass the same object into
+ * `registerFacadeRoute` (see `route-registry.ts`) and pass the same object into
  * `createKrabiClawFacadeRouteMiddleware` as that route's `middleware` entry in
  * `routeBuilder.build(...)`. The middleware built from this definition is
  * attached directly to the exact Hono route it governs — no independent path
