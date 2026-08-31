@@ -515,4 +515,64 @@ describe('krabiclaw facade whole-app gate ordering (U6)', () => {
       errorSpy.mockRestore();
     });
   });
+
+  describe('app-wide request loggers exclude sensitive path/query values under the facade mount path (R23, final-review Important #1)', () => {
+    /**
+     * Regression test for a real R23 violation found in the final whole-branch
+     * review: `honoLogger` (`hono-app.ts`) and `responseMiddleware`'s dev
+     * request logging (`responseMiddleware.ts`) both logged the raw
+     * `c.req.url`/`c.req.path` for EVERY request, including two facade routes
+     * that carry R23-prohibited values in exactly those fields —
+     * `GET /intakes/requests/{request_id}` (the trusted anonymous
+     * follow-up request reference IS the path segment) and
+     * `GET /intakes/{uuid}/post-pay/status?session_id=...` (the Stripe
+     * Checkout session ID is a query parameter). U6 already sanitized the
+     * facade's OWN audit-event logger for this (see the R23 describe block
+     * above), but that fix never covered these two shared, app-wide loggers.
+     * Exercised through the REAL, fully-assembled root app
+     * (`@/test/helpers/app`) — not the standalone facade module — because
+     * both loggers live in `hono-app.ts` middleware the standalone module
+     * never runs.
+     */
+    it('neither the request reference nor the Checkout session ID ever reaches the console sink via honoLogger or responseMiddleware', async () => {
+      const { app: rootApp } = await import('@/test/helpers/app');
+      /**
+       * `honoLogger` calls `logger[level].bind(logger)` ONCE, at
+       * `hono-app.ts` module-load time (long before this test runs), and
+       * reuses that bound function on every request — so `vi.spyOn` on the
+       * `Logger` object returned by a fresh `getLogger(['hono'])` call
+       * would replace a property the already-bound closure never looks up
+       * again, and would silently observe zero calls. Both loggers'
+       * console output funnels through the same `getConsoleSink` — a
+       * lower-level, always-fresh `console.info(...)` call per record
+       * (see `@logtape/logtape/dist/sink.js`) — so spying on `console.info`
+       * observes every record either logger actually emits, regardless of
+       * how each logger obtained/bound its method reference.
+       */
+      const consoleInfoSpy = vi.spyOn(console, 'info');
+
+      const SENSITIVE_REQUEST_REFERENCE_MARKER = randomUUID();
+      const SENSITIVE_SESSION_ID_MARKER = 'cs_test_SENSITIVE_SESSION_ID_MARKER';
+
+      await rootApp.request(`${mountPath}/intakes/requests/${SENSITIVE_REQUEST_REFERENCE_MARKER}`, {
+        headers: anonymousHeaders('org-a'),
+      });
+
+      await rootApp.request(
+        `${mountPath}/intakes/${randomUUID()}/post-pay/status?session_id=${SENSITIVE_SESSION_ID_MARKER}`,
+        { headers: { ...anonymousHeaders('org-a'), 'x-krabiclaw-request-reference': randomUUID() } }
+      );
+
+      // Sanity: prove these two requests actually produced console-sink log calls — otherwise the
+      // Assertions below would trivially pass on an empty call list.
+      expect(consoleInfoSpy).toHaveBeenCalled();
+
+      const loggedArgs = JSON.stringify(consoleInfoSpy.mock.calls);
+
+      expect(loggedArgs).not.toContain(SENSITIVE_REQUEST_REFERENCE_MARKER);
+      expect(loggedArgs).not.toContain(SENSITIVE_SESSION_ID_MARKER);
+
+      consoleInfoSpy.mockRestore();
+    });
+  });
 });

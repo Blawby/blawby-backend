@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { bodyLimit } from 'hono/body-limit';
 
 import { MAX_FACADE_BODY_BYTES } from '@/modules/krabiclaw-integration/config/body-limit';
+import { KRABICLAW_FACADE_MOUNT_PATH } from '@/modules/krabiclaw-integration/config/mount-path';
 import {
   KRABICLAW_MACHINE_AUTH_WWW_AUTHENTICATE,
   KrabiClawFacadeDisabledError,
@@ -299,6 +300,6 @@ app.openapi(updateEngagementContractStatusRoute, updateEngagementContractStatusH
 
 mountKrabiClawFacadeTerminalHandlers(app);
 
-export const mountPath = '/api/integrations/krabiclaw/v1';
+export const mountPath = KRABICLAW_FACADE_MOUNT_PATH;
 export { mountKrabiClawFacadeGlobalMiddleware, mountKrabiClawFacadeTerminalHandlers };
 export default app;
