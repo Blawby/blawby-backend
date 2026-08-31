@@ -28,6 +28,17 @@ import { routeBuilder } from '@/shared/router/route-builder';
  * Human actor only (R11) — the owning operations themselves also enforce
  * this via `assertHumanActor`, so this is defense in depth, not the sole
  * check.
+ *
+ * TRUST BOUNDARY: `actorPolicy: 'human'` is the ONLY check Blawby performs
+ * on every route in this file. It verifies the caller asserted a human
+ * actor, not that the actor is Blawby firm staff or holds any owner/admin
+ * role — the Implementation Constraints in the source plan
+ * (docs/plans/2026-08-27-2110-feat-u8-blawby-facade-plan.md) explicitly
+ * forbid this facade from manufacturing owner/admin role claims. KrabiClaw's
+ * BFF (referred to as U9 in that plan — a separate, not-yet-built system) is
+ * solely responsible for ensuring only an eligible actor for the operation
+ * being performed reaches these routes. Do not read `actorPolicy: 'human'`
+ * as a role/authorization check of any kind.
  */
 const policyResponses = {
   400: krabiclawValidationFailedResponse,
@@ -79,7 +90,9 @@ const createEngagementContractRoute = routeBuilder.build({
   path: createEngagementContractDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
   summary: 'Create an engagement contract (KrabiClaw facade)',
-  description: 'Creates a draft engagement contract for an accepted intake, for the caller-verified organization.',
+  description:
+    'Creates a draft engagement contract for an accepted intake, for the caller-verified organization. ' +
+    'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(createEngagementContractDefinition)],
   request: {
     body: {
@@ -132,7 +145,9 @@ const listEngagementContractsRoute = routeBuilder.build({
   path: listEngagementContractsDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
   summary: 'List engagement contracts (KrabiClaw facade)',
-  description: 'Retrieves a paginated list of engagement contracts for the caller-verified organization.',
+  description:
+    'Retrieves a paginated list of engagement contracts for the caller-verified organization. ' +
+    'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(listEngagementContractsDefinition)],
   request: { query: listEngagementContractsQueryFacadeSchema },
   responses: {
@@ -162,7 +177,9 @@ const getEngagementContractRoute = routeBuilder.build({
   path: getEngagementContractDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
   summary: 'Get an engagement contract (KrabiClaw facade)',
-  description: 'Retrieves a single engagement contract by ID for the caller-verified organization.',
+  description:
+    'Retrieves a single engagement contract by ID for the caller-verified organization. ' +
+    'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getEngagementContractDefinition)],
   request: { params: contractIdParamSchema },
   responses: {
@@ -197,7 +214,9 @@ const updateEngagementContractRoute = routeBuilder.build({
   path: updateEngagementContractDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
   summary: 'Update a draft engagement contract (KrabiClaw facade)',
-  description: 'Updates a draft engagement contract for the caller-verified organization.',
+  description:
+    'Updates a draft engagement contract for the caller-verified organization. ' +
+    'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(updateEngagementContractDefinition)],
   request: {
     params: contractIdParamSchema,
@@ -251,7 +270,9 @@ const updateEngagementContractStatusRoute = routeBuilder.build({
   path: updateEngagementContractStatusDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
   summary: 'Transition an engagement contract status (KrabiClaw facade)',
-  description: 'Dispatches a status-action (send, accept, or decline) for an engagement contract.',
+  description:
+    'Dispatches a status-action (send, accept, or decline) for an engagement contract. ' +
+    'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(updateEngagementContractStatusDefinition)],
   request: {
     params: contractIdParamSchema,

@@ -266,6 +266,26 @@ const getIntakeStatusRoute = routeBuilder.build({
 registerFacadeRoute(getIntakeStatusRoute, getIntakeStatusDefinition);
 
 /**
+ * GET /intakes, GET /intakes/{uuid}, and PATCH /intakes/{uuid}/triage below
+ * are "staff-only" by KrabiClaw's product contract — `getIntakeById` and
+ * `listIntakes` return the full admin projection (including internal
+ * AI-triage fields) and the full organization-wide intake list,
+ * respectively. Blawby enforces ONLY `actorPolicy: 'human'` on these three
+ * routes — there is no independent staff/role verification on this side.
+ * `actorPolicy: 'human'` passes for ANY human actor KrabiClaw's BFF asserts
+ * via the trusted headers; per the Implementation Constraints in the source
+ * plan (docs/plans/2026-08-27-2110-feat-u8-blawby-facade-plan.md), this
+ * facade must not manufacture owner/admin role claims. KrabiClaw's BFF
+ * (referred to as U9 in that plan — a separate, not-yet-built system) is
+ * solely responsible for ensuring only verified firm-staff actors are ever
+ * routed to these three routes. Do not read "staff-only" in any comment
+ * below, or `actorPolicy: 'human'` itself, as an authorization guarantee —
+ * flipping the `intake-without-payment` rollout-group flag on exposes the
+ * organization's full intake list and admin-projection fields to every
+ * human actor KrabiClaw's BFF chooses to assert as human.
+ */
+
+/**
  * GET /intakes — staff-only (human actor), preserves the shared Blawby
  * offset pagination envelope (R16) via `listIntakesResponseSchema`.
  */
@@ -287,7 +307,10 @@ const listIntakesRoute = routeBuilder.build({
   path: listIntakesDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'List practice client intakes (KrabiClaw facade)',
-  description: 'Retrieves a paginated list of client intakes for the caller-verified organization. Staff-only.',
+  description:
+    'Retrieves a paginated list of client intakes for the caller-verified organization. Staff-only by ' +
+    'product contract — Blawby verifies only that the caller asserted a human actor, not firm-staff ' +
+    'membership or role; the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(listIntakesDefinition)],
   request: { query: listIntakesQueryFacadeSchema },
   responses: {
@@ -321,7 +344,10 @@ const getIntakeRoute = routeBuilder.build({
   path: getIntakeDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'Get a practice client intake (KrabiClaw facade)',
-  description: 'Retrieves a single client intake by UUID for the caller-verified organization. Staff-only.',
+  description:
+    'Retrieves a single client intake by UUID for the caller-verified organization. Staff-only by ' +
+    'product contract — Blawby verifies only that the caller asserted a human actor, not firm-staff ' +
+    'membership or role; the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeDefinition)],
   request: { params: intakeUuidParamSchema },
   responses: {
@@ -361,7 +387,10 @@ const patchIntakeTriageRoute = routeBuilder.build({
   path: patchIntakeTriageDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'Update intake triage status (KrabiClaw facade)',
-  description: 'Sets the practice triage decision for an intake. Staff-only.',
+  description:
+    'Sets the practice triage decision for an intake. Staff-only by product contract — Blawby ' +
+    'verifies only that the caller asserted a human actor, not firm-staff membership or role; the ' +
+    'KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(patchIntakeTriageDefinition)],
   request: {
     params: intakeUuidParamSchema,
