@@ -25,7 +25,7 @@ const JWKS_CACHE_KEY = {};
  * classification, never the raw error, so a rejected token can't persist
  * claim data to application logs.
  */
-const classifyVerificationError = (error: unknown): { errorName: string; errorCode: string | undefined } => {
+const classifyVerificationError = (error: unknown) => {
   const errorName = error instanceof Error ? error.name : 'UnknownError';
   const errorCode =
     error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : undefined;

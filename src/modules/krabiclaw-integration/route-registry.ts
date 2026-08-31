@@ -18,12 +18,14 @@ const routeKey = (definition: Pick<KrabiClawFacadeRouteDefinition, 'method' | 'p
   `${definition.method.toUpperCase()} ${definition.path}`;
 
 /**
- * Register one route's immutable policy metadata. Call this once per route
- * a route file exposes.
+ * Register one route's immutable policy metadata. Internal — every real
+ * route must go through `registerFacadeRoute` below, which enforces the
+ * method/path agreement guard this function alone does not; it is not
+ * exported so there is no public door around that guard.
  *
  * @throws if a route with the same method and path is already registered.
  */
-export const defineFacadeRoute = (definition: KrabiClawFacadeRouteDefinition): KrabiClawFacadeRouteDefinition => {
+const defineFacadeRoute = (definition: KrabiClawFacadeRouteDefinition): KrabiClawFacadeRouteDefinition => {
   const key = routeKey(definition);
   if (registry.some((existing) => routeKey(existing) === key)) {
     throw new Error(`Duplicate KrabiClaw facade route registration: ${key}`);

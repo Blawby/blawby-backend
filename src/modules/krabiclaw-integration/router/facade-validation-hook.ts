@@ -16,7 +16,15 @@ import type { AppContext } from '@/shared/types/hono';
  * shape (code `validation_failed`, no request-derived detail) as every
  * other pre-D1 rejection (R23, R25).
  */
-export const krabiclawFacadeValidationHook: Hook<any, AppContext, any, any> = (result, c) => {
+/**
+ * `Hook`'s `T` (validated-data), `P` (path), and `R` (return) type parameters
+ * vary per route — this hook is installed once as `defaultHook` and must
+ * apply across every route's own schema, not one route's. `T` is `unknown`
+ * (this hook never reads `result.data`), `P` is the widest legal `string`
+ * (this hook never extracts a path param), and `R` is this function's own
+ * concrete return type rather than `any`.
+ */
+export const krabiclawFacadeValidationHook: Hook<unknown, AppContext, string, Response | undefined> = (result, c) => {
   if (!result.success) {
     const response = c.json(
       {

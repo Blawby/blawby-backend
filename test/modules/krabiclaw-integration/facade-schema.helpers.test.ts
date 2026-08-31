@@ -8,7 +8,6 @@ import {
   krabiclawLocalResourceIdSchema,
   krabiclawRequestReferenceSchema,
   krabiclawStrictSchema,
-  krabiclawTrustedHeaderSchema,
 } from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
 
 describe('krabiclawExternalIdSchema', () => {
@@ -70,24 +69,6 @@ describe('krabiclawIpAddressSchema', () => {
 
   it('rejects a forwarded-for style comma-separated list', () => {
     expect(krabiclawIpAddressSchema.safeParse('203.0.113.7, 10.0.0.1').success).toBe(false);
-  });
-});
-
-describe('krabiclawTrustedHeaderSchema', () => {
-  it('accepts an ordinary bounded value', () => {
-    expect(krabiclawTrustedHeaderSchema.safeParse('some-trusted-value').success).toBe(true);
-  });
-
-  it('rejects a control character (e.g. a stray NUL byte)', () => {
-    expect(krabiclawTrustedHeaderSchema.safeParse(`value${String.fromCharCode(0)}with-null`).success).toBe(false);
-  });
-
-  it('rejects a comma (duplicate-header) separator', () => {
-    expect(krabiclawTrustedHeaderSchema.safeParse('value-1,value-2').success).toBe(false);
-  });
-
-  it('rejects an oversized value', () => {
-    expect(krabiclawTrustedHeaderSchema.safeParse('x'.repeat(257)).success).toBe(false);
   });
 });
 

@@ -16,6 +16,13 @@ import type { CreateCheckoutSessionResponse } from '@/modules/practice-client-in
 
 const logger = getLogger(['practice-client-intakes', 'create-checkout-session-operation']);
 
+/**
+ * Facade-created intakes never carry `metadata.user_id` at creation time (the facade's strict create
+ * schema omits it), so `baseMetadata?.user_id ?? ctx.userId` below binds ownership here to whichever
+ * human actor happens to initiate checkout — harmless today since the caller already proved ownership
+ * via the request-reference check, and facade paths never read this field back for authorization, but
+ * worth flagging for a future reader who wires a new authorization path through this metadata.
+ */
 const buildUpdatedMetadata = (ctx: IntakeActorContext, intake: Pick<SelectPracticeClientIntake, 'metadata'>) => {
   const baseMetadata = intakeSharedHelpers.parseMetadata(intake.metadata);
   if (ctx.userId) {

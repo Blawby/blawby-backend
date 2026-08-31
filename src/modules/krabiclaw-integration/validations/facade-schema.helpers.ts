@@ -17,11 +17,6 @@ import { z } from '@hono/zod-openapi';
 const MAX_CANONICAL_ID_LENGTH = 64;
 const CANONICAL_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-const MAX_TRUSTED_HEADER_LENGTH = 256;
-/** Deliberately matches C0 control characters, DEL, and comma. */
-// oxlint-disable-next-line no-control-regex
-const CONTROL_OR_SEPARATOR_PATTERN = /[\x00-\x1F\x7F,]/;
-
 /** Bounded canonical-text KrabiClaw external ID (organization/actor) — never a UUID (R23). */
 export const krabiclawExternalIdSchema = z
   .string()
@@ -37,15 +32,6 @@ export const krabiclawLocalResourceIdSchema = z.uuid();
 
 /** The trusted originating-client-IP header value — a canonical IPv4 or IPv6 address, never a forwarding header (R27). */
 export const krabiclawIpAddressSchema = z.union([z.ipv4(), z.ipv6()]);
-
-/** A generic bounded, single-value trusted header — no control characters, no comma (duplicate-header) separators (R23). */
-export const krabiclawTrustedHeaderSchema = z
-  .string()
-  .min(1)
-  .max(MAX_TRUSTED_HEADER_LENGTH)
-  .refine((value) => !CONTROL_OR_SEPARATOR_PATTERN.test(value), {
-    message: 'must not contain control characters or comma separators',
-  });
 
 /**
  * Facade request/response DTOs must never declare any of these fields —
@@ -79,6 +65,7 @@ export const KRABICLAW_FORBIDDEN_IDENTITY_FIELD_KEYS = [
  * passes through undetected — reviewers should still eyeball any nested
  * object shape a future route schema introduces.
  */
+// oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `ZodRawShape` is Zod's built-in type name, not a renameable local symbol.
 export const krabiclawStrictSchema = <Fields extends z.ZodRawShape>(fields: Fields) => {
   const forbidden = KRABICLAW_FORBIDDEN_IDENTITY_FIELD_KEYS.filter((key) => key in fields);
   if (forbidden.length > 0) {

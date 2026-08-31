@@ -26,16 +26,6 @@ const errorResponse = (description: string) => ({
 
 export const krabiclawErrorEnvelopeSchema = errorEnvelopeSchema;
 
-/** Codes owned by the policy layer (this unit). Route families add their own codes per KTD8/the Reviewed Error Contract table. */
-export const KRABICLAW_POLICY_ERROR_CODES = [
-  'invalid_token',
-  'facade_forbidden',
-  'rate_limited',
-  'validation_failed',
-  'invalid_upstream_response',
-  'dependency_unavailable',
-] as const;
-
 /** Spread into a route's `responses` to describe the policy-layer 401 (machine auth) contract. */
 export const krabiclawInvalidTokenResponse = errorResponse('Machine-token authentication failed');
 /** Spread into a route's `responses` to describe the policy-layer 403 (scope/actor/rollout-group) contract. */

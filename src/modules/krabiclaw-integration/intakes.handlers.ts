@@ -388,6 +388,11 @@ const postCheckoutSessionHandler: AppRouteHandler<typeof postCheckoutSessionRout
   // See `getIntakeStatusHandler`'s comment on `isStaff: true` — same meaning here.
   const actorCtx: IntakeActorContext = { ...ctx.legalOperationContext, isStaff: true };
   try {
+    /**
+     * Intentional double-fetch: the request-reference ownership check below must happen before
+     * `createCheckoutSession` runs (which fetches the same intake again internally) — the operation
+     * boundary gives no earlier hook to check ownership, so this can't be avoided without restructuring it.
+     */
     const intake = await getActorAccessibleIntake(uuid, actorCtx);
     if (intake.krabiclaw_request_key !== requestReference) {
       return reviewedDomainErrorResponse(c, PUBLIC_INTAKE_NOT_FOUND);

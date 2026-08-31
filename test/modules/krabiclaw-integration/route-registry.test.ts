@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  defineFacadeRoute,
   listRegisteredFacadeRoutes,
   registerFacadeRoute,
   resetFacadeRouteRegistryForTests,
@@ -23,30 +22,25 @@ describe('route-registry', () => {
     resetFacadeRouteRegistryForTests();
   });
 
-  describe('defineFacadeRoute', () => {
-    it('registers a definition and returns it', () => {
-      expect(defineFacadeRoute(PRACTICE_READ)).toBe(PRACTICE_READ);
-      expect(listRegisteredFacadeRoutes()).toEqual([PRACTICE_READ]);
-    });
-
-    it('throws on a duplicate method+path registration', () => {
-      defineFacadeRoute(PRACTICE_READ);
-      expect(() => defineFacadeRoute({ ...PRACTICE_READ })).toThrow(/Duplicate KrabiClaw facade route registration/);
-    });
-
+  describe('registerFacadeRoute', () => {
+    /**
+     * Exercises the same-path/different-method registration case through
+     * `registerFacadeRoute` — the only production entry point into the
+     * registry (`defineFacadeRoute` is an internal helper `registerFacadeRoute`
+     * calls after its own method/path agreement check; it has no other
+     * caller, so this suite never bypasses that guard).
+     */
     it('allows the same path with a different method', () => {
-      defineFacadeRoute(PRACTICE_READ);
+      registerFacadeRoute({ method: 'GET', path: '/practice/details' }, PRACTICE_READ);
       const mutation: KrabiClawFacadeRouteDefinition = {
         ...PRACTICE_READ,
         method: 'post',
         rolloutGroup: 'practice-mutation',
       };
-      expect(() => defineFacadeRoute(mutation)).not.toThrow();
+      expect(() => registerFacadeRoute({ method: 'POST', path: '/practice/details' }, mutation)).not.toThrow();
       expect(listRegisteredFacadeRoutes()).toHaveLength(2);
     });
-  });
 
-  describe('registerFacadeRoute', () => {
     it('registers when the built route agrees with its definition (KTD2 single source of truth)', () => {
       const route = { method: 'GET', path: '/practice/details' };
       expect(() => registerFacadeRoute(route, PRACTICE_READ)).not.toThrow();
