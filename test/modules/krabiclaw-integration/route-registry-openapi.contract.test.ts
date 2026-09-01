@@ -66,6 +66,13 @@ describe('krabiclaw-integration facade registration contract (U6)', () => {
   });
 
   it("Hono's own runtime route table agrees exactly with the Route Contract (no route missing, none extra, none duplicated)", () => {
+    // Deliberately deduped into a Set, not asserted for cardinality first: Hono's `.routes` array
+    // Holds one entry per middleware layer attached to a path (global middleware, the route-scoped
+    // `createKrabiClawFacadeRouteMiddleware` entry, and the handler itself all register separately
+    // Under the same method+path) — every legitimate route here has multiple entries by design, so
+    // A raw-array-length check would fail unconditionally rather than catching a real duplicate
+    // `app.openapi(...)` registration. The policy-registry check above (`listRegisteredFacadeRoutes`)
+    // Is the one that's actually one-entry-per-route and can meaningfully assert cardinality.
     const runtimeKeys = new Set(
       krabiclawIntegrationApp.routes
         .filter((route) => route.method !== 'ALL')

@@ -231,8 +231,11 @@ const mountKrabiClawFacadeTerminalHandlers = (app: KrabiClawFacadeApp): void => 
      * reads as the dependency itself being unavailable — sanitize to `503
      * dependency_unavailable`.
      */
+    // Name only, never `.message` — an unmapped domain error can still carry an interpolated
+    // Identifier (e.g. an organization ID) in its message; the same discipline already applied
+    // In `resolveIdentityOrFail` (krabiclaw-facade.middleware.ts).
     logger.error('krabiclaw facade unmapped error: {error}', {
-      error: error instanceof Error ? { name: error.name, message: error.message } : { name: 'UnknownError' },
+      error: error instanceof Error ? { name: error.name } : { name: 'UnknownError' },
     });
     const isUnrecognizedUpstreamContract = error instanceof HTTPException && error.status >= 400 && error.status < 500;
     const status = isUnrecognizedUpstreamContract ? 502 : 503;

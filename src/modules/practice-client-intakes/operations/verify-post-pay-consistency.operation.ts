@@ -79,9 +79,8 @@ const verifyPostPayConsistency = async (
     try {
       return await stripe.checkout.sessions.retrieve(sessionId);
     } catch (error) {
-      logger.warn('Could not retrieve Stripe checkout session {sessionId} for post-pay verification', {
-        sessionId,
-        error,
+      logger.warn('Could not retrieve Stripe checkout session for post-pay verification', {
+        error_name: error instanceof Error ? error.name : 'unknown',
       });
       throw new HTTPException(404, { message: CONSISTENCY_FAILURE_MESSAGE });
     }

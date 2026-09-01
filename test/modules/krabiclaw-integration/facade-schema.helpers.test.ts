@@ -15,7 +15,7 @@ describe('krabiclawExternalIdSchema', () => {
     expect(krabiclawExternalIdSchema.safeParse('org_2p8qsF1s0LKzAxYzR9WvQ').success).toBe(true);
   });
 
-  it('rejects a UUID-shaped value the same as any other 36-char string over the pattern — canonical text is not UUID-restricted', () => {
+  it('accepts a UUID-shaped value like any other 36-char string over the pattern — canonical text is not UUID-restricted', () => {
     // Canonical-text IDs deliberately are NOT the UUID validator — a UUID happens to match the canonical pattern too.
     expect(krabiclawExternalIdSchema.safeParse('11111111-1111-4111-8111-111111111111').success).toBe(true);
   });

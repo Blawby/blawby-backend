@@ -5,6 +5,8 @@ import krabiclawIntegrationApp from '@/modules/krabiclaw-integration/http';
 import { authHelpers } from '@/test/helpers/auth';
 import type { TestOrganization } from '@/test/types/shared';
 import type { config } from '@/shared/config';
+import type { IntakePaymentCreated } from '@/shared/events/definitions/payments';
+import type { IntakeSubmitted } from '@/shared/events/definitions/intakes';
 
 /**
  * Task review Important #4: `intakes.contract.test.ts` mocks every domain
@@ -109,7 +111,13 @@ vi.mock('@/shared/utils/stripe-client', () => ({
 }));
 
 vi.mock('@/shared/events/definitions', async (importOriginal) => {
-  const actual = await importOriginal();
+  // Narrow, precedent-matching shape (same pattern as this file's `@/shared/config` mock above)
+  // Covering only the two exports overridden below — `...actual` still spreads every other real
+  // Export through at runtime; only the type is intentionally narrower than the real module.
+  const actual = await importOriginal<{
+    IntakePaymentCreated: typeof IntakePaymentCreated;
+    IntakeSubmitted: typeof IntakeSubmitted;
+  }>();
   return {
     ...actual,
     IntakePaymentCreated: { dispatch: vi.fn() },

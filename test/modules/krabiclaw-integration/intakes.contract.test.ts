@@ -14,6 +14,7 @@ import { getActorAccessibleIntake } from '@/modules/practice-client-intakes/oper
 import { listIntakes } from '@/modules/practice-client-intakes/operations/list-intakes.operation';
 import { updateIntakeTriageStatus } from '@/modules/practice-client-intakes/operations/update-intake-triage-status.operation';
 import { verifyPostPayConsistency } from '@/modules/practice-client-intakes/operations/verify-post-pay-consistency.operation';
+import { intakeValidations } from '@/modules/practice-client-intakes/validations/practice-client-intakes.validation';
 import type { SelectPracticeClientIntake } from '@/modules/practice-client-intakes/database/schema/practice-client-intakes.schema';
 import type { config } from '@/shared/config';
 
@@ -527,10 +528,29 @@ describe('GET /intakes/{uuid}/status — anonymous follow-up authorization (KTD6
     });
 
     expect(res.status).toBe(200);
-    // SAFETY: the 200 status assertion above confirms this is a JSON object response from
-    // `c.json(...)` — narrowing to an indexable record is safe for the `not.toHaveProperty` checks
-    // Below, which do not depend on any specific field's value type.
-    const body = (await res.json()) as Record<string, unknown>;
+    /**
+     * `.pick()` off the route's own real response schema — no `as` cast, no hand-duplicated
+     * field list. Picking only the fields this test uses excludes the schema's `z.date()`
+     * timestamp fields (`created_at`, `triage_decided_at`, etc.), which don't round-trip through
+     * JSON transport (dates arrive as strings), so parsing the full schema against fetched JSON
+     * fails even though the picked subset parses cleanly.
+     */
+    const intakeStatusTestFields = intakeValidations.practiceClientIntakeStatusResponseSchema.pick({
+      uuid: true,
+      status: true,
+      metadata: true,
+      transcript_summary: true,
+      enrichment_status: true,
+      enrichment_version: true,
+      enrichment_attempt_count: true,
+      enrichment_model: true,
+      enrichment_error_code: true,
+      enrichment_requested_at: true,
+      enriched_at: true,
+      conversation_id: true,
+      address_id: true,
+    });
+    const body = intakeStatusTestFields.parse(await res.json());
     for (const adminOnlyField of [
       'transcript_summary',
       'enrichment_status',

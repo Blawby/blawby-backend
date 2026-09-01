@@ -86,11 +86,14 @@ const createAccountSession = async (
       account_id: account.stripe_account_id,
     };
   } catch (error) {
-    logger.error('Failed to create Stripe account session for {organizationId}: {error}', {
-      error,
+    // Stripe errors carry raw response data and headers (`wrapStripeError`, the project's
+    // Established Stripe-error convention in `@/shared/utils/stripe-error.ts`, likewise never
+    // Logs more than `.message`) — log only the message, never the full error object.
+    logger.error('Failed to create Stripe account session for {organizationId}: {message}', {
+      message: error instanceof Error ? error.message : 'Unknown Stripe error',
       organizationId,
     });
-    throw new HTTPException(500, { message: 'Failed to create Stripe account session' });
+    throw new HTTPException(500, { message: 'Failed to create Stripe account session', cause: error });
   }
 };
 

@@ -84,7 +84,9 @@ const resolveIdentityOrFail = async (headers: KrabiClawFacadeHeaders): Promise<R
      */
     const summary = error instanceof Error ? { name: error.name, message: error.message } : { name: 'UnknownError' };
     logger.error('krabiclaw facade identity resolution failed: {error}', { error: summary });
-    throw new KrabiClawUpstreamDependencyError(502, 'Failed to resolve KrabiClaw identity');
+    // Preserve the caught error as `cause` for anyone deliberately inspecting it (e.g. a
+    // Debugger) — never re-logged, since that's exactly the R23 leak the summary above avoids.
+    throw new KrabiClawUpstreamDependencyError(502, 'Failed to resolve KrabiClaw identity', { cause: error });
   }
 };
 

@@ -5,6 +5,7 @@ import { verifyPostPayConsistency } from '@/modules/practice-client-intakes/oper
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { authHelpers } from '@/test/helpers/auth';
 import { intakeHelpers } from '@/test/modules/practice-client-intakes/helpers/intake';
+import { stripe } from '@/shared/utils/stripe-client';
 import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { TestOrganization } from '@/test/types/shared';
 
@@ -186,29 +187,52 @@ describe('verifyPostPayConsistency operation — post-pay correlation and condit
     const sessionA = `cs_test_${randomUUID()}`;
     const sessionB = `cs_test_${randomUUID()}`;
 
-    intakeHelpers.mockStripeSessionRetrieve({
-      id: sessionA,
-      paymentStatus: 'paid',
-      status: 'complete',
-      metadata: { intake_uuid: intake.id },
+    // `intakeHelpers.mockStripeSessionRetrieve` only supports one fixture at a time
+    // (`mockResolvedValue`), so a second call would silently replace the first — routing
+    // Locally by session ID here instead is what makes both calls below genuinely concurrent
+    // Rather than two sequential calls against a single fixed mock response.
+    const sessionFixturesById = new Map<
+      string,
+      { id: string; payment_status: string; status: string; metadata: Record<string, string> }
+    >();
+    const registerSession = (id: string): void => {
+      sessionFixturesById.set(id, {
+        id,
+        payment_status: 'paid',
+        status: 'complete',
+        metadata: { intake_uuid: intake.id },
+      });
+    };
+    registerSession(sessionA);
+    registerSession(sessionB);
+    vi.mocked(stripe.checkout.sessions.retrieve).mockImplementation(async (sessionId: string) => {
+      const fixture = sessionFixturesById.get(sessionId);
+      if (!fixture) {
+        throw new Error(`No mocked Stripe session fixture registered for id: ${sessionId}`);
+      }
+      return fixture;
     });
-    const first = await verifyPostPayConsistency(
-      { organizationId: org.id, intakeUuid: intake.id, sessionId: sessionA, requestKey },
-      ctx
-    );
-    expect(first.paid).toBe(true);
 
-    intakeHelpers.mockStripeSessionRetrieve({
-      id: sessionB,
-      paymentStatus: 'paid',
-      status: 'complete',
-      metadata: { intake_uuid: intake.id },
-    });
-    await expect(
-      verifyPostPayConsistency({ organizationId: org.id, intakeUuid: intake.id, sessionId: sessionB, requestKey }, ctx)
-    ).rejects.toMatchObject({ status: 409 });
+    type VerifyResult = Awaited<ReturnType<typeof verifyPostPayConsistency>>;
+    const isFulfilled = (
+      outcome: PromiseSettledResult<VerifyResult>
+    ): outcome is PromiseFulfilledResult<VerifyResult> => outcome.status === 'fulfilled';
+    const isRejected = (outcome: PromiseSettledResult<VerifyResult>): outcome is PromiseRejectedResult =>
+      outcome.status === 'rejected';
+
+    const outcomes = await Promise.allSettled([
+      verifyPostPayConsistency({ organizationId: org.id, intakeUuid: intake.id, sessionId: sessionA, requestKey }, ctx),
+      verifyPostPayConsistency({ organizationId: org.id, intakeUuid: intake.id, sessionId: sessionB, requestKey }, ctx),
+    ]);
+
+    const fulfilled = outcomes.filter(isFulfilled);
+    const rejected = outcomes.filter(isRejected);
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(fulfilled[0]?.value.paid).toBe(true);
+    expect(rejected[0]?.reason).toMatchObject({ status: 409 });
 
     const reloaded = await practiceClientIntakesRepository.findById(intake.id);
-    expect(reloaded?.stripe_checkout_session_id).toBe(sessionA);
+    expect([sessionA, sessionB]).toContain(reloaded?.stripe_checkout_session_id);
   });
 });

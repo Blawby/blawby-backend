@@ -7,8 +7,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const isDevelopment = (): boolean => (process.env.APP_ENV?.toLowerCase() ?? 'development') === 'development';
@@ -37,10 +36,22 @@ if (!isDevelopment()) {
   EXCLUDED_MODULES.push('dev');
 }
 
-const toCamelCase = (str: string): string => str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+const toCamelCase = (str: string): string =>
+  str.replace(/-(?<letter>[a-z])/g, (_, letter: string) => letter.toUpperCase());
 
 const toIdentifier = (str: string): string =>
-  toCamelCase(str.replace(/[^a-zA-Z0-9]+(.)?/g, (_, letter) => (letter ? letter.toUpperCase() : '')));
+  toCamelCase(
+    str.replace(/[^a-zA-Z0-9]+(?<letter>.)?/g, (_, letter: string | undefined) => (letter ? letter.toUpperCase() : ''))
+  );
+
+const pathExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const discoverModules = async (): Promise<string[]> => {
   const allDirs = await readdir(MODULES_DIR, { withFileTypes: true });
@@ -88,7 +99,7 @@ const generateMcpToolsRegistry = async (modules: string[]): Promise<void> => {
     const routesFlatPath = join(MODULES_DIR, mod, 'routes.ts');
     const routeModules: string[] = [];
 
-    if (existsSync(routesIndexPath)) {
+    if (await pathExists(routesIndexPath)) {
       const routeFiles = (await readdir(routesDir)).filter((f) => f.endsWith('.ts'));
       const hasMcp = (await Promise.all(routeFiles.map((file) => readFile(join(routesDir, file), 'utf-8')))).some(
         (text) => text.includes('mcp:')
@@ -96,7 +107,7 @@ const generateMcpToolsRegistry = async (modules: string[]): Promise<void> => {
       if (hasMcp) {
         routeModules.push('routes/index');
       }
-    } else if (existsSync(routesDir)) {
+    } else if (await pathExists(routesDir)) {
       const routeFiles = (await readdir(routesDir)).filter((f) => f.endsWith('.ts'));
       for (const file of routeFiles) {
         const text = await readFile(join(routesDir, file), 'utf-8');
@@ -104,7 +115,7 @@ const generateMcpToolsRegistry = async (modules: string[]): Promise<void> => {
           routeModules.push(`routes/${file.replace(/\.ts$/, '')}`);
         }
       }
-    } else if (existsSync(routesFlatPath)) {
+    } else if (await pathExists(routesFlatPath)) {
       const text = await readFile(routesFlatPath, 'utf-8');
       if (text.includes('mcp:')) {
         routeModules.push('routes');

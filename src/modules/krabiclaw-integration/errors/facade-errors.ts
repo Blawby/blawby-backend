@@ -73,7 +73,7 @@ export class KrabiClawFacadeDisabledError extends HTTPException {
 
 /** A D1/PostgreSQL/Stripe dependency failed after every policy gate passed — sanitized, never the raw dependency error (R15). */
 export class KrabiClawUpstreamDependencyError extends HTTPException {
-  constructor(status: 502 | 503, message: string) {
-    super(status, { message });
+  constructor(status: 502 | 503, message: string, options?: { cause?: unknown }) {
+    super(status, { message, cause: options?.cause });
   }
 }

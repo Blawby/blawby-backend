@@ -55,6 +55,10 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
   c.set('startTime', startTime);
 
   try {
+    // The rule below expects a Node-style callback's result to be `return`ed immediately, but
+    // `next` here is Hono's async middleware continuation — response-time measurement and
+    // Logging genuinely need to run after it resolves, not be skipped by an early return.
+    // oxlint-disable-next-line node/callback-return
     await next();
 
     // Calculate and log response time
@@ -82,6 +86,9 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
     return;
   } catch (error) {
     const responseTime = Date.now() - startTime;
+    // Same sanitization as the success-path request log above (R23) — error-path logging is not
+    // Gated on `!isProduction()`, so an unsanitized facade URL here would leak in production too.
+    const url = isKrabiclawFacadeRequest(c.req.path) ? routePath(c) : c.req.url;
 
     // Handle HTTP exceptions (Hono's built-in handling might not return JSON)
     if (error instanceof HTTPException) {
@@ -89,7 +96,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
       logError(error, {
         method: c.req.method,
-        url: c.req.url,
+        url,
         statusCode: status,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
@@ -117,7 +124,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
       logError(error, {
         method: c.req.method,
-        url: c.req.url,
+        url,
         statusCode: safeStatus,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
@@ -137,7 +144,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
       logError(error, {
         method: c.req.method,
-        url: c.req.url,
+        url,
         statusCode: safeStatus,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
@@ -172,7 +179,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
     // Handle unexpected errors
     logError(error, {
       method: c.req.method,
-      url: c.req.url,
+      url,
       statusCode: 500,
       userId: c.get('userId'),
       organizationId: c.get('activeOrganizationId'),

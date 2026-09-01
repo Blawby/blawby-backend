@@ -179,7 +179,9 @@ const update = async (id: string, data: Partial<SelectPracticeClientIntake>): Pr
     .set({ ...data, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
     .returning();
-  if (!updated) throw new Error(`PracticeClientIntake not found for id: ${id}`);
+  if (!updated) {
+    throw new Error(`PracticeClientIntake not found for id: ${id}`);
+  }
   return updated;
 };
 
