@@ -34,3 +34,11 @@ export const krabiclawForbiddenResponse = errorResponse('Request is not permitte
 export const krabiclawRateLimitedResponse = errorResponse('Request exceeded a facade rate limit');
 /** Spread into a route's `responses` to describe a pre-D1 header/body validation failure. */
 export const krabiclawValidationFailedResponse = errorResponse('Request failed facade validation');
+/**
+ * Spread into every route's `responses` — `http.ts`'s `onError` sanitizes any unrecognized
+ * upstream 4xx contract to this (never a bare 500; see that file's own doc comment). Reachable
+ * from any route, not specific to one family.
+ */
+export const krabiclawUpstreamInvalidResponse = errorResponse('An unrecognized upstream dependency response');
+/** Spread into every route's `responses` — `http.ts`'s `onError` sanitizes a dependency timeout, outage, or unexpected error (5xx or unstatused) to this. Reachable from any route. */
+export const krabiclawDependencyUnavailableResponse = errorResponse('A facade dependency is unavailable');

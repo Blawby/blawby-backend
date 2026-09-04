@@ -64,10 +64,16 @@ app.use(
         responseTime,
         contentLength: c.res.headers.get('content-length') ?? undefined,
         userAgent: c.req.header('user-agent'),
-        // `||`, not `??`, to match the built-in `combined` format's fallback exactly — an
-        // Empty-string `referrer` header must still fall through to `referer`.
+        /**
+         * A referring URL's own query string could carry a request reference or Checkout session
+         * ID if the caller's frontend passed one through unstripped — unlike `url`/`path` above,
+         * there's no facade-safe substitute (like `routePath(c)`) for an arbitrary referrer, so
+         * facade requests omit it entirely rather than logging it raw.
+         * `||`, not `??`, to match the built-in `combined` format's fallback exactly for non-facade
+         * requests — an empty-string `referrer` header must still fall through to `referer`.
+         */
         // oxlint-disable-next-line typescript/prefer-nullish-coalescing
-        referrer: c.req.header('referrer') || c.req.header('referer'),
+        referrer: isFacadeRequest ? undefined : c.req.header('referrer') || c.req.header('referer'),
       };
     },
   })

@@ -2,6 +2,9 @@ import { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import krabiclawIntegrationApp from '@/modules/krabiclaw-integration/http';
+import { listEngagementContractsResponseSchema } from '@/modules/krabiclaw-integration/routes/engagement-contracts.routes';
+import { krabiclawErrorEnvelopeSchema } from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
+import { z } from '@hono/zod-openapi';
 import { verifyFacadeToken } from '@/modules/krabiclaw-integration/middleware/verify-facade-token';
 import { krabiclawDirectoryService } from '@/modules/krabiclaw-integration/services/krabiclaw-directory.service';
 import { krabiclawIdentityResolverService } from '@/modules/krabiclaw-integration/services/krabiclaw-identity-resolver.service';
@@ -260,10 +263,9 @@ describe('krabiclaw engagement-contract facade routes', () => {
       });
 
       expect(res.status).toBe(409);
-      // SAFETY: The 409 status assertion above confirms this response was built by
-      // `reviewedDomainErrorResponse` (engagement-contracts.handlers.ts), which always returns the
-      // Reviewed `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
-      const body = (await res.json()) as { error: { code: string; message: string } };
+      // Parsed against the real reviewed envelope schema — no `as` cast — so a response that
+      // Doesn't conform to the facade's own error contract fails loudly instead of type-lying.
+      const body = krabiclawErrorEnvelopeSchema.parse(await res.json());
       expect(body.error.code).toBe('state_conflict');
       expect(body.error.message).not.toContain('abc-123');
     });
@@ -294,12 +296,17 @@ describe('krabiclaw engagement-contract facade routes', () => {
       });
 
       expect(res.status).toBe(200);
-      // SAFETY: The 200 status assertion above confirms this response is the list route's own
-      // 200 body shape (`listEngagementContractsResponseSchema`), which always carries `data`/`pagination`.
-      const body = (await res.json()) as {
-        data: unknown[];
-        pagination: { page: number; limit: number; total: number };
-      };
+      /**
+       * `.pick()` off the route's own real response schema, extended with a loosely-typed `data`
+       * — no `as` cast. `data`'s real element schema (`engagementContractSchema`) carries
+       * `z.date()` fields that don't round-trip through JSON transport (dates arrive as strings),
+       * so only its length is asserted here, not its shape, to avoid the same JSON/date mismatch
+       * worked around elsewhere in this test suite.
+       */
+      const listResponsePaginationSchema = listEngagementContractsResponseSchema
+        .pick({ pagination: true })
+        .extend({ data: z.array(z.unknown()) });
+      const body = listResponsePaginationSchema.parse(await res.json());
       expect(body.pagination).toEqual({ page: 1, limit: 20, total: 1 });
       expect(body.data).toHaveLength(1);
       expect(listEngagementContracts).toHaveBeenCalledWith(
@@ -336,10 +343,7 @@ describe('krabiclaw engagement-contract facade routes', () => {
       });
 
       expect(res.status).toBe(404);
-      // SAFETY: The 404 status assertion above confirms this response was built by
-      // `reviewedDomainErrorResponse` (engagement-contracts.handlers.ts), which always returns the
-      // Reviewed `{ error: { code, message }, request_id }` envelope — the body shape is guaranteed.
-      const body = (await res.json()) as { error: { code: string; message: string } };
+      const body = krabiclawErrorEnvelopeSchema.parse(await res.json());
       expect(body.error.code).toBe('resource_not_found');
       expect(body.error.message).not.toContain('authenticated context');
     });

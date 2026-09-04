@@ -24,6 +24,17 @@ import { routeBuilder } from '@/shared/router/route-builder';
  * Every route is human-actor-only (Connect has no anonymous use case) and
  * derives its organization from the verified `KrabiClawFacadeRequestContext`
  * — never from the caller.
+ *
+ * TRUST BOUNDARY: `actorPolicy: 'human'` is the ONLY check Blawby performs
+ * on every route in this file. It verifies the caller asserted a human
+ * actor, not that the actor is Blawby firm staff or holds any owner/admin
+ * role — the Implementation Constraints in the source plan
+ * (docs/plans/2026-08-27-2110-feat-u8-blawby-facade-plan.md) explicitly
+ * forbid this facade from manufacturing owner/admin role claims. KrabiClaw's
+ * BFF (referred to as U9 in that plan — a separate, not-yet-built system) is
+ * solely responsible for ensuring only an eligible actor for the operation
+ * being performed reaches these routes. Do not read `actorPolicy: 'human'`
+ * as a role/authorization check of any kind.
  */
 const policyResponses = {
   400: krabiclawValidationFailedResponse,

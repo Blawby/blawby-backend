@@ -1,5 +1,6 @@
 import { getLogger } from '@logtape/logtape';
 import { HTTPException } from 'hono/http-exception';
+import { Stripe } from 'stripe';
 
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import type { IntakePostPayStatusResponse } from '@/modules/practice-client-intakes/types/practice-client-intakes.types';
@@ -82,7 +83,19 @@ const verifyPostPayConsistency = async (
       logger.warn('Could not retrieve Stripe checkout session for post-pay verification', {
         error_name: error instanceof Error ? error.name : 'unknown',
       });
-      throw new HTTPException(404, { message: CONSISTENCY_FAILURE_MESSAGE });
+      /**
+       * Only a genuinely missing session (Stripe's own "no such checkout session" response,
+       * `StripeInvalidRequestError` with `statusCode: 404`) is a real correlation mismatch and
+       * belongs in the uniform, indistinguishable 404 (R14). Any other Stripe failure — a
+       * connection error, rate limit, auth failure, or Stripe-side 5xx — is a genuine dependency
+       * outage, not evidence the session doesn't exist; disguising it as 404 would silently hide
+       * a real incident behind "this resource doesn't exist." Let it propagate as an unmapped
+       * error so the facade's own onError sanitizes it into a 502/503, matching R15/R25.
+       */
+      if (error instanceof Stripe.errors.StripeInvalidRequestError && error.statusCode === 404) {
+        throw new HTTPException(404, { message: CONSISTENCY_FAILURE_MESSAGE });
+      }
+      throw error;
     }
   })();
 

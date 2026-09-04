@@ -77,9 +77,15 @@ const findByKrabiClawRequestKey = async (
   return intake;
 };
 
+/**
+ * `isNewInsert` distinguishes the actual `ON CONFLICT DO NOTHING` winner from a concurrent
+ * caller that lost the race and fell through to the existing row — callers must gate any
+ * creation-only side effect (e.g. domain event dispatch) on this flag, or two callers racing
+ * on the same `(organization_id, krabiclaw_request_key)` would both fire it for one intake.
+ */
 const createWithKrabiClawRequestKey = async (
   data: InsertPracticeClientIntake & { krabiclaw_request_key: string }
-): Promise<SelectPracticeClientIntake> => {
+): Promise<{ intake: SelectPracticeClientIntake; isNewInsert: boolean }> => {
   const [intake] = await getActiveTx()
     .insert(practiceClientIntakes)
     .values(data)
@@ -89,14 +95,14 @@ const createWithKrabiClawRequestKey = async (
     })
     .returning();
   if (intake) {
-    return intake;
+    return { intake, isNewInsert: true };
   }
 
   const existing = await findByKrabiClawRequestKey(data.organization_id, data.krabiclaw_request_key);
   if (!existing) {
     throw new Error('Failed to create idempotent krabiclaw intake');
   }
-  return existing;
+  return { intake: existing, isNewInsert: false };
 };
 
 const findById = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {

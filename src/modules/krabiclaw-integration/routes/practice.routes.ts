@@ -2,15 +2,21 @@ import { createKrabiClawFacadeRouteMiddleware } from '@/modules/krabiclaw-integr
 import { registerFacadeRoute } from '@/modules/krabiclaw-integration/route-registry';
 import type { KrabiClawFacadeRouteDefinition } from '@/modules/krabiclaw-integration/types/route-policy.types';
 import {
+  krabiclawDependencyUnavailableResponse,
   krabiclawForbiddenResponse,
   krabiclawInvalidTokenResponse,
   krabiclawRateLimitedResponse,
+  krabiclawUpstreamInvalidResponse,
   krabiclawValidationFailedResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
 import { krabiclawResourceNotFoundResponse } from '@/modules/krabiclaw-integration/validations/facade-route-error-responses';
-import { krabiclawStrictSchema } from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
+import {
+  krabiclawExternalIdSchema,
+  krabiclawStrictSchema,
+} from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
+import { z } from '@hono/zod-openapi';
 
 /**
  * Practice family facade routes (R1, R6-R9, R11, R14, R22, R26). No path
@@ -18,13 +24,52 @@ import { routeBuilder } from '@/shared/router/route-builder';
  * (`/api/practice/{practice_id}/details`), the organization is always
  * derived server-side from the verified `KrabiClawFacadeRequestContext`
  * (R14), never from the caller.
+ *
+ * TRUST BOUNDARY: `actorPolicy: 'human'` is the ONLY check Blawby performs
+ * on every route in this file. It verifies the caller asserted a human
+ * actor, not that the actor is Blawby firm staff or holds any owner/admin
+ * role — the Implementation Constraints in the source plan
+ * (docs/plans/2026-08-27-2110-feat-u8-blawby-facade-plan.md) explicitly
+ * forbid this facade from manufacturing owner/admin role claims. KrabiClaw's
+ * BFF (referred to as U9 in that plan — a separate, not-yet-built system) is
+ * solely responsible for ensuring only an eligible actor for the operation
+ * being performed reaches these routes. Do not read `actorPolicy: 'human'`
+ * as a role/authorization check of any kind.
  */
 const policyResponses = {
   400: krabiclawValidationFailedResponse,
   401: krabiclawInvalidTokenResponse,
   403: krabiclawForbiddenResponse,
   429: krabiclawRateLimitedResponse,
+  502: krabiclawUpstreamInvalidResponse,
+  503: krabiclawDependencyUnavailableResponse,
 };
+
+/**
+ * Documents the trusted header contract every facade route requires (KTD2's route-scoped
+ * middleware, not this schema, is what actually enforces it at request time — see
+ * `parseFacadeHeaders`/`verifyFacadeToken`). `@hono/zod-openapi` installs this as a genuine
+ * `zValidator("header", ...)` alongside the route's other validators, but per that library's own
+ * composition order (`this.on(method, path, ...middleware, ...validators, handler)`),
+ * `createKrabiClawFacadeRouteMiddleware` — which includes the imperative header check — always
+ * runs first; this schema can only re-confirm what that check already accepted, never reject a
+ * request the imperative check would have allowed, since it reuses the exact same schema objects.
+ */
+const krabiclawFacadeHeadersSchema = z.object({
+  authorization: z
+    .string()
+    .regex(/^[Bb]earer\s+\S+$/)
+    .openapi({ description: 'Bearer token: Authorization: Bearer <facade-scoped access token>' }),
+  'x-krabiclaw-organization-id': krabiclawExternalIdSchema.openapi({
+    description: "The caller-verified KrabiClaw organization's external ID",
+  }),
+  'x-krabiclaw-actor-id': krabiclawExternalIdSchema.openapi({
+    description: "The caller-verified acting user's external ID",
+  }),
+  'x-krabiclaw-actor-kind': z.enum(['human', 'anonymous']).openapi({
+    description: 'Whether the acting caller is a verified human or a Better Auth anonymous actor',
+  }),
+});
 
 const getPracticeDetailsDefinition: KrabiClawFacadeRouteDefinition = {
   method: 'get',
@@ -43,6 +88,7 @@ const getPracticeDetailsRoute = routeBuilder.build({
   summary: 'Get practice details (KrabiClaw facade)',
   description: 'Retrieve practice details for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getPracticeDetailsDefinition)],
+  request: { headers: krabiclawFacadeHeadersSchema },
   responses: {
     ...policyResponses,
     200: {
@@ -89,6 +135,7 @@ const postPracticeDetailsRoute = routeBuilder.build({
   description: 'Create practice details for the caller-verified organization (upserts, matching the existing route).',
   middleware: [createKrabiClawFacadeRouteMiddleware(postPracticeDetailsDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     body: {
       content: { 'application/json': { schema: createPracticeDetailsFacadeSchema } },
       description: 'Practice details data',
@@ -123,6 +170,7 @@ const patchPracticeDetailsRoute = routeBuilder.build({
   description: "Update practice details for the caller-verified organization (creates if it doesn't exist).",
   middleware: [createKrabiClawFacadeRouteMiddleware(patchPracticeDetailsDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     body: {
       content: { 'application/json': { schema: updatePracticeDetailsFacadeSchema } },
       description: 'Practice details update data',

@@ -67,7 +67,7 @@ const insertIntakeRecord = async (params: {
   shouldBypassPayment: boolean;
   actorUserId?: string;
   requestKey?: string;
-}): Promise<SelectPracticeClientIntake> => {
+}): Promise<{ intake: SelectPracticeClientIntake; isNewInsert: boolean }> => {
   let addressId: string | undefined = undefined;
   if (params.data.address) {
     const addressRecord = await upsertAddress({
@@ -117,12 +117,15 @@ const insertIntakeRecord = async (params: {
     ...(params.shouldBypassPayment && { succeeded_at: new Date() }),
   };
 
-  return params.requestKey
-    ? practiceClientIntakesRepository.createWithKrabiClawRequestKey({
-        ...intakeData,
-        krabiclaw_request_key: params.requestKey,
-      })
-    : practiceClientIntakesRepository.create(intakeData);
+  if (params.requestKey) {
+    return practiceClientIntakesRepository.createWithKrabiClawRequestKey({
+      ...intakeData,
+      krabiclaw_request_key: params.requestKey,
+    });
+  }
+  // No request key means no concurrent-retry race to lose — every caller here is a genuine insert.
+  const intake = await practiceClientIntakesRepository.create(intakeData);
+  return { intake, isNewInsert: true };
 };
 
 const toCreateIntakeResponse = (
@@ -293,7 +296,7 @@ export const createIntake = async (
       });
     }
 
-    const intake = await uow.transaction(async () =>
+    const { intake, isNewInsert } = await uow.transaction(async () =>
       insertIntakeRecord({
         data,
         resolvedAmount,
@@ -308,50 +311,59 @@ export const createIntake = async (
       })
     );
 
-    void IntakePaymentCreated.dispatch(
-      {
-        intake_payment_id: intake.id,
-        uuid: intake.id,
-        stripe_payment_link_id: stripePaymentLink?.id,
-        amount: resolvedAmount,
-        currency: 'usd',
-        client_email: data.email,
-        client_name: data.name,
-        created_at: new Date(),
-      },
-      {
-        actorId: 'organization',
-        organizationId: organization.id,
-      }
-    );
-
-    if (shouldBypassPayment) {
-      void IntakeSubmitted.dispatch(
+    /**
+     * Only the request that actually won the `ON CONFLICT DO NOTHING` insert dispatches creation
+     * events — a concurrent same-key caller that lost the race and was redirected to the winner's
+     * row (`isNewInsert: false`) must not re-fire `IntakePaymentCreated`/`IntakeSubmitted` for an
+     * intake it didn't create; two racing callers would otherwise double-dispatch both events for
+     * one intake.
+     */
+    if (isNewInsert) {
+      void IntakePaymentCreated.dispatch(
         {
-          intake_id: intake.id,
-          organization_id: organization.id,
-          organization_name: organization.name,
-          organization_slug: organization.slug ?? undefined,
-          billing_email: organization.billingEmail ?? null,
-          client_email: data.email,
-          client_name: data.name,
+          intake_payment_id: intake.id,
+          uuid: intake.id,
+          stripe_payment_link_id: stripePaymentLink?.id,
           amount: resolvedAmount,
           currency: 'usd',
-          practice_service_name: selectedPracticeServiceName,
-          jurisdiction: data.address?.state,
-          court_date: data.court_date,
-          has_documents: data.has_documents,
-          case_strength: data.case_strength,
-          desired_outcome: data.desired_outcome,
-          opposing_party: data.opposing_party,
-          description: data.description,
-          submitted_at: new Date().toISOString(),
+          client_email: data.email,
+          client_name: data.name,
+          created_at: new Date(),
         },
         {
           actorId: 'organization',
           organizationId: organization.id,
         }
       );
+
+      if (shouldBypassPayment) {
+        void IntakeSubmitted.dispatch(
+          {
+            intake_id: intake.id,
+            organization_id: organization.id,
+            organization_name: organization.name,
+            organization_slug: organization.slug ?? undefined,
+            billing_email: organization.billingEmail ?? null,
+            client_email: data.email,
+            client_name: data.name,
+            amount: resolvedAmount,
+            currency: 'usd',
+            practice_service_name: selectedPracticeServiceName,
+            jurisdiction: data.address?.state,
+            court_date: data.court_date,
+            has_documents: data.has_documents,
+            case_strength: data.case_strength,
+            desired_outcome: data.desired_outcome,
+            opposing_party: data.opposing_party,
+            description: data.description,
+            submitted_at: new Date().toISOString(),
+          },
+          {
+            actorId: 'organization',
+            organizationId: organization.id,
+          }
+        );
+      }
     }
 
     return toCreateIntakeResponse(intake, organization, stripePaymentLink?.url ?? null);
