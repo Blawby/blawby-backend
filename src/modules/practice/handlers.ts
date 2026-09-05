@@ -5,6 +5,7 @@ import { intakeTemplatesService } from '@/modules/practice/services/intake-templ
 import { practiceDetailsManagementService } from '@/modules/practice/services/practice-details-management.service';
 import { practiceManagementService } from '@/modules/practice/services/practice-management.service';
 import { practiceQueriesService } from '@/modules/practice/services/practice-queries.service';
+import { practiceInsightsService } from '@/modules/practice/services/practice-insights.service';
 import type { AppRouteHandler } from '@/shared/types/hono';
 import { getServiceContext } from '@/shared/types/service-context';
 import { HTTPException } from 'hono/http-exception';
@@ -138,6 +139,13 @@ export const conflictCheckHandler: AppRouteHandler<typeof routes.conflictCheckRo
   const ctx = getServiceContext(c);
   const body = c.req.valid('json');
   const result = await conflictCheckService.runConflictCheck({ data: body }, ctx);
+  return c.json(result);
+};
+
+export const getPracticeInsightsHandler: AppRouteHandler<typeof routes.getPracticeInsightsRoute> = async (c) => {
+  const ctx = getServiceContext(c);
+  const { topic } = c.req.valid('query');
+  const result = await practiceInsightsService.getInsights({ topic }, ctx);
   return c.json(result);
 };
 
