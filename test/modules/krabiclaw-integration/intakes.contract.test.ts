@@ -260,7 +260,7 @@ beforeEach(() => {
 });
 
 describe('GET /intakes/settings', () => {
-  it('reaches getIntakeSettings with subscriptionPolicy enforce (matches the owning route, no revenue-gate bypass) and returns its result for a human actor', async () => {
+  it('reaches getIntakeSettings with subscriptionPolicy bypass (entitlement is KrabiClaw/U9\'s responsibility, not Blawby\'s local subscription record) and returns its result for a human actor', async () => {
     vi.mocked(getIntakeSettings).mockResolvedValue({
       organization: { id: 'local-ext-org-1', name: 'Acme Legal', slug: 'acme-legal' },
       settings: { payment_link_enabled: true, consultation_fee: 15000 },
@@ -282,7 +282,7 @@ describe('GET /intakes/settings', () => {
 
     expect(res.status).toBe(200);
     expect(getIntakeSettings).toHaveBeenCalledWith(
-      { organizationId: 'local-ext-org-1', templateSlug: undefined, subscriptionPolicy: 'enforce' },
+      { organizationId: 'local-ext-org-1', templateSlug: undefined, subscriptionPolicy: 'bypass' },
       expect.any(Object)
     );
   });
@@ -355,8 +355,29 @@ describe('POST /intakes', () => {
       expect.objectContaining({
         organizationId: 'local-ext-org-1',
         requestKey: REQUEST_REFERENCE_A,
-        subscriptionPolicy: 'enforce',
+        subscriptionPolicy: 'bypass',
+        allowPaymentLinkCreation: true,
       }),
+      expect.any(Object)
+    );
+  });
+
+  it('threads the intake-payment rollout flag through as false when that rollout group is off, even though intake-without-payment (this route\'s own gate) is on', async () => {
+    configState.rolloutGroups = { ...configState.rolloutGroups, 'intake-payment': false };
+    vi.mocked(createIntake).mockResolvedValue(createIntakeResponseFixture);
+
+    const res = await krabiclawIntegrationApp.request('/intakes', {
+      method: 'POST',
+      headers: {
+        ...anonymousHeaders('ext-org-1', { 'x-krabiclaw-request-reference': REQUEST_REFERENCE_A }),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ amount: 0, email: 'client@example.test', name: 'Jane Client' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(createIntake).toHaveBeenCalledWith(
+      expect.objectContaining({ allowPaymentLinkCreation: false }),
       expect.any(Object)
     );
   });
@@ -440,7 +461,7 @@ describe('GET /intakes/requests/{request_id} (recovery)', () => {
 
     expect(res.status).toBe(200);
     expect(getIntakeByRequestReference).toHaveBeenCalledWith(
-      { organizationId: 'local-ext-org-1', requestKey: REQUEST_REFERENCE_A },
+      { organizationId: 'local-ext-org-1', requestKey: REQUEST_REFERENCE_A, allowPaymentLinkCreation: true },
       expect.any(Object)
     );
   });
@@ -661,9 +682,6 @@ describe('POST /intakes/{uuid}/checkout-session — payment family, request-refe
   });
 
   it('creates a checkout session when the trusted request reference matches the intake, delegating to the existing destination-charge operation', async () => {
-    vi.mocked(getActorAccessibleIntake).mockResolvedValue(
-      buildIntakeFixture({ krabiclaw_request_key: REQUEST_REFERENCE_A })
-    );
     vi.mocked(createCheckoutSession).mockResolvedValue(checkoutSessionResponseFixture);
 
     const res = await krabiclawIntegrationApp.request(`/intakes/${INTAKE_UUID}/checkout-session`, {
@@ -673,14 +691,15 @@ describe('POST /intakes/{uuid}/checkout-session — payment family, request-refe
 
     expect(res.status).toBe(201);
     expect(createCheckoutSession).toHaveBeenCalledWith(
-      expect.objectContaining({ uuid: INTAKE_UUID }),
+      expect.objectContaining({ uuid: INTAKE_UUID, requestReference: REQUEST_REFERENCE_A }),
       expect.objectContaining({ isStaff: true })
     );
   });
 
-  it('rejects a wrong request reference for a matching intake UUID with the uniform 404, never calling the checkout operation', async () => {
-    vi.mocked(getActorAccessibleIntake).mockResolvedValue(
-      buildIntakeFixture({ krabiclaw_request_key: REQUEST_REFERENCE_A })
+  it('rejects a wrong request reference for a matching intake UUID with the uniform 404, from the checkout operation itself', async () => {
+    // The request-reference comparison now happens inside `createCheckoutSession` (against the intake it resolves internally via `getActorAccessibleIntake`), not in the handler — this mock simulates exactly what that operation does on a mismatch.
+    vi.mocked(createCheckoutSession).mockRejectedValue(
+      new HTTPException(404, { message: 'Practice client intake not found' })
     );
 
     const res = await krabiclawIntegrationApp.request(`/intakes/${INTAKE_UUID}/checkout-session`, {
@@ -689,7 +708,25 @@ describe('POST /intakes/{uuid}/checkout-session — payment family, request-refe
     });
 
     expect(res.status).toBe(404);
-    expect(createCheckoutSession).not.toHaveBeenCalled();
+    expect(createCheckoutSession).toHaveBeenCalledWith(
+      expect.objectContaining({ uuid: INTAKE_UUID, requestReference: REQUEST_REFERENCE_B }),
+      expect.objectContaining({ isStaff: true })
+    );
+  });
+
+  it('reserializes a cross-tenant intake (403 tenant mismatch) into the uniform 404, never the prerequisite_failed contract', async () => {
+    // `assertLegalOperationTenant`'s tenant-mismatch 403 and the operation's own "connected account not ready" 403 must not collapse into the same reviewed response — a cross-tenant UUID must stay indistinguishable from a genuinely missing one (R14).
+    vi.mocked(createCheckoutSession).mockRejectedValue(
+      new HTTPException(403, { message: 'Organization does not match the authenticated context' })
+    );
+
+    const res = await krabiclawIntegrationApp.request(`/intakes/${INTAKE_UUID}/checkout-session`, {
+      method: 'POST',
+      headers: anonymousHeaders('ext-org-1', { 'x-krabiclaw-request-reference': REQUEST_REFERENCE_A }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ error: { code: 'resource_not_found' } });
   });
 
   it('reserializes a not-ready connected account (403) into the reviewed prerequisite_failed contract (422)', async () => {

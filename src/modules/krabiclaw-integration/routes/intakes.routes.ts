@@ -4,9 +4,11 @@ import { createKrabiClawFacadeRouteMiddleware } from '@/modules/krabiclaw-integr
 import { registerFacadeRoute } from '@/modules/krabiclaw-integration/route-registry';
 import type { KrabiClawFacadeRouteDefinition } from '@/modules/krabiclaw-integration/types/route-policy.types';
 import {
+  krabiclawDependencyUnavailableResponse,
   krabiclawForbiddenResponse,
   krabiclawInvalidTokenResponse,
   krabiclawRateLimitedResponse,
+  krabiclawUpstreamInvalidResponse,
   krabiclawValidationFailedResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
 import {
@@ -16,6 +18,8 @@ import {
   krabiclawStaffForbiddenResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-route-error-responses';
 import {
+  krabiclawFacadeHeadersSchema,
+  krabiclawFacadeHeadersWithRequestReferenceSchema,
   krabiclawLocalResourceIdSchema,
   krabiclawRequestReferenceSchema,
   krabiclawStrictSchema,
@@ -42,6 +46,8 @@ const policyResponses = {
   401: krabiclawInvalidTokenResponse,
   403: krabiclawForbiddenResponse,
   429: krabiclawRateLimitedResponse,
+  502: krabiclawUpstreamInvalidResponse,
+  503: krabiclawDependencyUnavailableResponse,
 };
 
 /**
@@ -119,13 +125,15 @@ const getIntakeSettingsDefinition: KrabiClawFacadeRouteDefinition = {
 const intakeSettingsQueryFacadeSchema = krabiclawStrictSchema(intakeValidations.getIntakeSettingsQuerySchema.shape);
 
 const getIntakeSettingsRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getIntakeSettingsDefinition.method,
   path: getIntakeSettingsDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'Get intake settings (KrabiClaw facade)',
   description: 'Retrieve public intake settings for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeSettingsDefinition)],
-  request: { query: intakeSettingsQueryFacadeSchema },
+  request: { headers: krabiclawFacadeHeadersSchema, query: intakeSettingsQueryFacadeSchema },
   responses: {
     ...policyResponses,
     ...publicIntakeSettingsResponses,
@@ -169,6 +177,8 @@ const createIntakeFacadeFields = createIntakeFacadeObjectSchema.shape;
 const createIntakeFacadeSchema = krabiclawStrictSchema(createIntakeFacadeFields);
 
 const postIntakesRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: postIntakesDefinition.method,
   path: postIntakesDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
@@ -177,6 +187,7 @@ const postIntakesRoute = routeBuilder.build({
     'Creates (or recovers, by the trusted request reference) a practice client intake for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(postIntakesDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersWithRequestReferenceSchema,
     body: {
       content: { 'application/json': { schema: createIntakeFacadeSchema } },
       description: 'Intake submission data',
@@ -212,13 +223,15 @@ const getIntakeByRequestReferenceDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getIntakeByRequestReferenceRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getIntakeByRequestReferenceDefinition.method,
   path: getIntakeByRequestReferenceDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'Recover a practice client intake by request reference (KrabiClaw facade)',
   description: 'Recovers a previously created intake for the caller-verified organization by its request reference.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeByRequestReferenceDefinition)],
-  request: { params: requestReferencePathParamSchema },
+  request: { headers: krabiclawFacadeHeadersSchema, params: requestReferencePathParamSchema },
   responses: {
     ...policyResponses,
     ...publicIntakeNotFoundOnlyResponses,
@@ -247,13 +260,15 @@ const getIntakeStatusDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getIntakeStatusRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getIntakeStatusDefinition.method,
   path: getIntakeStatusDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'Get practice client intake status (KrabiClaw facade)',
   description: 'Retrieves the current status of an intake, authorized by the trusted request reference.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeStatusDefinition)],
-  request: { params: intakeUuidParamSchema },
+  request: { headers: krabiclawFacadeHeadersWithRequestReferenceSchema, params: intakeUuidParamSchema },
   responses: {
     ...policyResponses,
     ...publicIntakeNotFoundOnlyResponses,
@@ -303,6 +318,8 @@ const listIntakesDefinition: KrabiClawFacadeRouteDefinition = {
 const listIntakesQueryFacadeSchema = krabiclawStrictSchema(intakeValidations.listIntakesQuerySchema.shape);
 
 const listIntakesRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: listIntakesDefinition.method,
   path: listIntakesDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
@@ -312,7 +329,7 @@ const listIntakesRoute = routeBuilder.build({
     'product contract — Blawby verifies only that the caller asserted a human actor, not firm-staff ' +
     'membership or role; the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(listIntakesDefinition)],
-  request: { query: listIntakesQueryFacadeSchema },
+  request: { headers: krabiclawFacadeHeadersSchema, query: listIntakesQueryFacadeSchema },
   responses: {
     ...policyResponses,
     ...staffIntakeDomainResponses,
@@ -340,6 +357,8 @@ const getIntakeDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getIntakeRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getIntakeDefinition.method,
   path: getIntakeDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
@@ -349,7 +368,7 @@ const getIntakeRoute = routeBuilder.build({
     'product contract — Blawby verifies only that the caller asserted a human actor, not firm-staff ' +
     'membership or role; the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getIntakeDefinition)],
-  request: { params: intakeUuidParamSchema },
+  request: { headers: krabiclawFacadeHeadersSchema, params: intakeUuidParamSchema },
   responses: {
     ...policyResponses,
     ...staffIntakeDomainResponses,
@@ -383,6 +402,8 @@ const triageStatusFacadeSchema = krabiclawStrictSchema({
 });
 
 const patchIntakeTriageRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: patchIntakeTriageDefinition.method,
   path: patchIntakeTriageDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
@@ -393,6 +414,7 @@ const patchIntakeTriageRoute = routeBuilder.build({
     'KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(patchIntakeTriageDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     params: intakeUuidParamSchema,
     body: { content: { 'application/json': { schema: triageStatusFacadeSchema } } },
   },
@@ -423,13 +445,15 @@ const postCheckoutSessionDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const postCheckoutSessionRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: postCheckoutSessionDefinition.method,
   path: postCheckoutSessionDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
   summary: 'Create a Checkout Session for an intake (KrabiClaw facade)',
   description: 'Creates a Stripe Checkout Session for an existing intake, authorized by the trusted request reference.',
   middleware: [createKrabiClawFacadeRouteMiddleware(postCheckoutSessionDefinition)],
-  request: { params: intakeUuidParamSchema },
+  request: { headers: krabiclawFacadeHeadersWithRequestReferenceSchema, params: intakeUuidParamSchema },
   responses: {
     ...policyResponses,
     ...publicIntakeFullDomainResponses,
@@ -463,6 +487,8 @@ const getPostPayStatusDefinition: KrabiClawFacadeRouteDefinition = {
 const postPayStatusQueryFacadeSchema = krabiclawStrictSchema(intakeValidations.checkoutSessionStatusQuerySchema.shape);
 
 const getPostPayStatusRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getPostPayStatusDefinition.method,
   path: getPostPayStatusDefinition.path,
   tags: ['KrabiClaw Facade', 'Intakes'],
@@ -470,7 +496,11 @@ const getPostPayStatusRoute = routeBuilder.build({
   description:
     'Verifies that organization, intake UUID, Stripe Checkout Session, and the trusted request reference all describe the same intake before returning payment status.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getPostPayStatusDefinition)],
-  request: { params: intakeUuidParamSchema, query: postPayStatusQueryFacadeSchema },
+  request: {
+    headers: krabiclawFacadeHeadersWithRequestReferenceSchema,
+    params: intakeUuidParamSchema,
+    query: postPayStatusQueryFacadeSchema,
+  },
   responses: {
     ...policyResponses,
     ...publicPostPayResponses,

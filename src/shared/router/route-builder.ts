@@ -6,6 +6,7 @@ import {
   notFoundResponseSchema,
 } from '@/shared/validations/openapi';
 import { createRoute } from '@hono/zod-openapi';
+// oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `ZodRawShape` is Zod's built-in type name, not a renameable local symbol.
 import type { ZodRawShape } from 'zod';
 
 type RouteConfig = Parameters<typeof createRoute>[0];
@@ -15,8 +16,15 @@ interface McpRouteAnnotation {
   scope: string;
   name?: string;
   description?: string;
+  // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- `ZodRawShape` is Zod's built-in type name, not a renameable local symbol.
   schema?: ZodRawShape;
   approval?: McpToolApproval;
+  /**
+   * An MCP tool's `args`/return shape is genuinely per-tool — this annotation type is shared by
+   * every tool registered through `routeBuilder.build`, so it cannot name one concrete domain
+   * type here without conflicting with the others.
+   */
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type,anti-slop/no-unknown-returns
   handler: (args: Record<string, unknown>, ctx: ServiceContext) => Promise<unknown>;
 }
 
@@ -35,9 +43,9 @@ export const routeBuilder = {
    * @returns Hono route object
    */
   build: <P extends string, M extends McpRouteAnnotation | undefined, R extends RouteConfig & { path: P; mcp?: M }>(
-    config: R
+    config: R & { excludeDefaultResponses?: readonly (400 | 401 | 403 | 404 | 500)[] }
   ) => {
-    const { mcp, ...routeConfig } = config;
+    const { mcp, excludeDefaultResponses, ...routeConfig } = config;
 
     // Standard error responses (400, 401, 403, 404, 500)
     const standardResponses: Responses = {
@@ -83,6 +91,16 @@ export const routeBuilder = {
       },
     };
 
+    /**
+     * A caller whose error contract never produces one of these codes (e.g. the KrabiClaw facade,
+     * which reserializes every failure into its own reviewed 4xx/5xx set and never returns a bare
+     * `500`) can exclude it here — otherwise it would survive into the OpenAPI document as an
+     * unreachable response the route can never actually produce.
+     */
+    for (const code of excludeDefaultResponses ?? []) {
+      delete standardResponses[code];
+    }
+
     // Merge standard responses with configuration (config takes precedence)
     const responses: Responses = {
       ...standardResponses,
@@ -95,9 +113,11 @@ export const routeBuilder = {
     });
 
     if (mcp !== undefined) {
+      // SAFETY: `Object.assign` just attached the `mcp` property checked non-undefined on the line above, so the runtime shape genuinely matches `WithMcp`.
       return Object.assign(route, { mcp }) as typeof route & WithMcp;
     }
 
+    // SAFETY: this branch only runs when `mcp` is undefined, so `route` genuinely carries no `mcp` property — `WithoutMcp`'s `Record<string, never>` accurately describes that absence.
     return route as typeof route & WithoutMcp;
   },
 };

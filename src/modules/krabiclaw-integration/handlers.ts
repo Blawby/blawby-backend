@@ -102,6 +102,21 @@ const mapConnectOperationError = (error: unknown): ReviewedDomainErrorMapping | 
   if (error.status === 422) {
     return { status: 422, code: 'prerequisite_failed', message: 'Connect account setup could not be completed' };
   }
+  /**
+   * `connected-accounts.service.ts`'s `rethrowConnectedAccountError` passes a Stripe client
+   * error's own `statusCode` straight through as this `HTTPException`'s status — no operation in
+   * this family ever throws a domain 401/403 of its own (confirmed: no `HTTPException(401` or
+   * `HTTPException(403` literal exists anywhere under `onboarding/operations` or
+   * `onboarding/services`). So a 401 or 403 reaching here is always Stripe's own authentication or
+   * permission failure — Blawby's credential/config problem, not the caller's — and must never be
+   * disguised as a caller validation error the generic 4xx fallback below would otherwise produce.
+   * Retryable: the caller did nothing wrong, so it can safely retry without changing the request.
+   */
+  if (error.status === 401 || error.status === 403) {
+    throw new KrabiClawUpstreamDependencyError(503, 'A KrabiClaw facade dependency is unavailable', {
+      cause: error,
+    });
+  }
   if (error.status >= 400 && error.status < 500) {
     return { status: 400, code: 'validation_failed', message: 'Connect request could not be validated' };
   }

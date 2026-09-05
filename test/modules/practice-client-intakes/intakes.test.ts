@@ -93,6 +93,9 @@ vi.mock('@/shared/events/definitions', async (importOriginal) => {
     IntakePaymentCreated: {
       dispatch: vi.fn(),
     },
+    IntakeSubmitted: {
+      dispatch: vi.fn(),
+    },
   };
 });
 

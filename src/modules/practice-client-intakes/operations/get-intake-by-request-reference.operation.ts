@@ -14,12 +14,17 @@ import { assertLegalOperationTenant, type LegalOperationContext } from '@/shared
  * a different organization can never be recovered here (R20) — it returns the same recoverable
  * create result (including payment-link state) that `createIntake` itself would return on a
  * same-key retry.
+ *
+ * `allowPaymentLinkCreation` (facade callers only): same gate as `createIntake`'s — this route is
+ * ALSO scoped to the `intake-without-payment` rollout group alone, so a previously created intake
+ * that carries a real Stripe payment link (made while `intake-payment` was on) must not still be
+ * handed back through this route once that rollout group is off again.
  */
 export const getIntakeByRequestReference = async (
-  params: { organizationId: string; requestKey: string },
+  params: { organizationId: string; requestKey: string; allowPaymentLinkCreation?: boolean },
   ctx: LegalOperationContext
 ): Promise<CreateIntakeResponse> => {
-  const { organizationId, requestKey } = params;
+  const { organizationId, requestKey, allowPaymentLinkCreation } = params;
   assertLegalOperationTenant(ctx, organizationId);
 
   const organization = await organizationRepository.findById(organizationId);
@@ -30,6 +35,12 @@ export const getIntakeByRequestReference = async (
   const recovered = await findRecoverableIntakeByRequestKey(organizationId, requestKey, organization);
   if (!recovered) {
     throw new HTTPException(404, { message: 'No intake found for the given request reference' });
+  }
+
+  if (recovered.payment_link_url && allowPaymentLinkCreation === false) {
+    throw new HTTPException(403, {
+      message: 'Payment-enabled intake creation is not yet available for this caller',
+    });
   }
 
   return recovered;

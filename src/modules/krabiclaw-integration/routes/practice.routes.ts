@@ -11,12 +11,11 @@ import {
 } from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
 import { krabiclawResourceNotFoundResponse } from '@/modules/krabiclaw-integration/validations/facade-route-error-responses';
 import {
-  krabiclawExternalIdSchema,
+  krabiclawFacadeHeadersSchema,
   krabiclawStrictSchema,
 } from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
 import { practiceValidations } from '@/modules/practice/validations/practice.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
-import { z } from '@hono/zod-openapi';
 
 /**
  * Practice family facade routes (R1, R6-R9, R11, R14, R22, R26). No path
@@ -45,32 +44,6 @@ const policyResponses = {
   503: krabiclawDependencyUnavailableResponse,
 };
 
-/**
- * Documents the trusted header contract every facade route requires (KTD2's route-scoped
- * middleware, not this schema, is what actually enforces it at request time — see
- * `parseFacadeHeaders`/`verifyFacadeToken`). `@hono/zod-openapi` installs this as a genuine
- * `zValidator("header", ...)` alongside the route's other validators, but per that library's own
- * composition order (`this.on(method, path, ...middleware, ...validators, handler)`),
- * `createKrabiClawFacadeRouteMiddleware` — which includes the imperative header check — always
- * runs first; this schema can only re-confirm what that check already accepted, never reject a
- * request the imperative check would have allowed, since it reuses the exact same schema objects.
- */
-const krabiclawFacadeHeadersSchema = z.object({
-  authorization: z
-    .string()
-    .regex(/^[Bb]earer\s+\S+$/)
-    .openapi({ description: 'Bearer token: Authorization: Bearer <facade-scoped access token>' }),
-  'x-krabiclaw-organization-id': krabiclawExternalIdSchema.openapi({
-    description: "The caller-verified KrabiClaw organization's external ID",
-  }),
-  'x-krabiclaw-actor-id': krabiclawExternalIdSchema.openapi({
-    description: "The caller-verified acting user's external ID",
-  }),
-  'x-krabiclaw-actor-kind': z.enum(['human', 'anonymous']).openapi({
-    description: 'Whether the acting caller is a verified human or a Better Auth anonymous actor',
-  }),
-});
-
 const getPracticeDetailsDefinition: KrabiClawFacadeRouteDefinition = {
   method: 'get',
   path: '/practice/details',
@@ -82,6 +55,8 @@ const getPracticeDetailsDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getPracticeDetailsRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getPracticeDetailsDefinition.method,
   path: getPracticeDetailsDefinition.path,
   tags: ['KrabiClaw Facade', 'Practice'],
@@ -128,6 +103,8 @@ const postPracticeDetailsDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const postPracticeDetailsRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: postPracticeDetailsDefinition.method,
   path: postPracticeDetailsDefinition.path,
   tags: ['KrabiClaw Facade', 'Practice'],
@@ -163,6 +140,8 @@ const patchPracticeDetailsDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const patchPracticeDetailsRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: patchPracticeDetailsDefinition.method,
   path: patchPracticeDetailsDefinition.path,
   tags: ['KrabiClaw Facade', 'Practice'],

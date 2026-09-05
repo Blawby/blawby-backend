@@ -38,12 +38,23 @@ const buildUpdatedMetadata = (ctx: IntakeActorContext, intake: Pick<SelectPracti
  * Create (or reuse an existing open) Stripe Checkout Session for an intake awaiting payment.
  * Preserves the destination-charge structure and the reuse-if-open guard from the pre-extraction
  * service (R28) — a new session is only created once the previous one is closed or paid.
+ *
+ * `requestReference` (KTD19, KTD6): when the caller supplies it (the facade route always does),
+ * this is compared against the resolved intake's `krabiclaw_request_key` before anything else
+ * runs — the trusted request-reference comparison, not `ctx.isStaff`, is the facade's actual
+ * follow-up authorization for an anonymous-or-human caller. A mismatch folds to the same 404
+ * `getActorAccessibleIntake` itself throws for a genuinely missing intake (R14). Threading this
+ * through the operation (rather than a second fetch-and-check in the caller) avoids fetching the
+ * intake twice.
  */
 export const createCheckoutSession = async (
-  params: { uuid: string; origin?: string | null },
+  params: { uuid: string; origin?: string | null; requestReference?: string },
   ctx: IntakeActorContext
 ): Promise<CreateCheckoutSessionResponse> => {
   const intake = await getActorAccessibleIntake(params.uuid, ctx);
+  if (params.requestReference !== undefined && intake.krabiclaw_request_key !== params.requestReference) {
+    throw new HTTPException(404, { message: 'Practice client intake not found' });
+  }
   if (intake.status !== 'open') {
     throw new HTTPException(400, { message: 'Intake is not eligible for checkout session creation' });
   }
@@ -88,6 +99,19 @@ export const createCheckoutSession = async (
 
   const metadata = intakeSharedHelpers.parseMetadata(intake.metadata) ?? { email: '', name: '' };
 
+  /**
+   * Without an idempotency key, a crash between a successful Stripe call and the
+   * `stripe_checkout_session_id` DB persist below would leave `intake.stripe_checkout_session_id`
+   * still null, so a retry reaches this exact line again and creates a SECOND real Stripe Checkout
+   * Session for the same intake (the "reuse an existing open session" branch above only helps once
+   * a session id has actually been persisted). Scoped by both organization and intake id (not just
+   * the request reference alone) so this can never collide with the payment-link idempotency key
+   * (`krabiclaw-intake:...`) built for the same request reference elsewhere in this flow.
+   */
+  const idempotencyKey = params.requestReference
+    ? `krabiclaw-checkout:${organization.id}:${intake.id}:${params.requestReference}`
+    : undefined;
+
   const session = await createIntakeCheckoutSession({
     currency: intake.currency,
     amount: intake.amount,
@@ -105,6 +129,7 @@ export const createCheckoutSession = async (
     origin: params.origin,
     conversationId: intake.conversation_id,
     userId: ctx.userId,
+    idempotencyKey,
   });
 
   if (!session.url) {

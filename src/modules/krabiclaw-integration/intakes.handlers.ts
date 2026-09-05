@@ -18,14 +18,12 @@ import { createIntake } from '@/modules/practice-client-intakes/operations/creat
 import { getIntakeByRequestReference } from '@/modules/practice-client-intakes/operations/get-intake-by-request-reference.operation';
 import { getIntakeById } from '@/modules/practice-client-intakes/operations/get-intake-by-id.operation';
 import { getIntakeSettings } from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
-import {
-  getActorAccessibleIntake,
-  type IntakeActorContext,
-} from '@/modules/practice-client-intakes/operations/intake-actor-context';
+import { getIntakeStatusByRequestReference } from '@/modules/practice-client-intakes/operations/get-intake-status-by-request-reference.operation';
+import type { IntakeActorContext } from '@/modules/practice-client-intakes/operations/intake-actor-context';
 import { listIntakes } from '@/modules/practice-client-intakes/operations/list-intakes.operation';
-import { intakeSharedHelpers } from '@/modules/practice-client-intakes/services/intake-shared.helpers';
 import { updateIntakeTriageStatus } from '@/modules/practice-client-intakes/operations/update-intake-triage-status.operation';
 import { verifyPostPayConsistency } from '@/modules/practice-client-intakes/operations/verify-post-pay-consistency.operation';
+import { config } from '@/shared/config';
 import { extractOriginFromReferer } from '@/shared/utils/env';
 import type { AppContext, AppRouteHandler } from '@/shared/types/hono';
 
@@ -133,11 +131,28 @@ const mapCreateIntakeOperationError = (error: unknown): ReviewedDomainErrorMappi
   return null;
 };
 
+/**
+ * `createCheckoutSession` throws a 403 for two unrelated reasons this handler's `actorCtx`
+ * (`isStaff: true`) makes ambiguous: `assertLegalOperationTenant`'s tenant mismatch (which R14
+ * requires fold into the same uniform 404 as every other public-intake correlation failure — a
+ * cross-tenant checkout attempt must never disclose that the intake UUID exists), and the
+ * operation's own "Connected account is not ready to accept payments" prerequisite failure (which
+ * must stay a distinct `422 prerequisite_failed`, not a 404 — confirmed by the existing "reserializes
+ * a not-ready connected account" test). `isStaff: true` means `getActorAccessibleIntake`'s
+ * ownership-check 403s ("Client user is not linked to this intake", "Access denied") can never
+ * reach this handler, so `assertLegalOperationTenant`'s message is the only tenant-mismatch 403
+ * possible here — checking for it by name is precise, not a guess across an open-ended set.
+ */
+const TENANT_MISMATCH_MESSAGE = 'Organization does not match the authenticated context';
+
 const mapCheckoutSessionOperationError = (error: unknown): ReviewedDomainErrorMapping | null => {
   if (!(error instanceof HTTPException)) {
     return null;
   }
   if (error.status === 404) {
+    return PUBLIC_INTAKE_NOT_FOUND;
+  }
+  if (error.status === 403 && error.message === TENANT_MISMATCH_MESSAGE) {
     return PUBLIC_INTAKE_NOT_FOUND;
   }
   if (error.status === 403) {
@@ -223,18 +238,20 @@ const getIntakeSettingsHandler: AppRouteHandler<typeof getIntakeSettingsRoute> =
   const { template_slug } = c.req.valid('query');
   try {
     /**
-     * `subscriptionPolicy: 'enforce'` — task review Important #1: no plan
-     * document (brief, global-context.md, planning-context.md) states the
-     * facade should exempt itself from Blawby's local subscription gate.
-     * The owning public route (`intake-creation.service.ts`) always passes
-     * `'enforce'`; the facade must match it, not silently grant KrabiClaw
-     * callers a revenue-gate bypass the ordinary route doesn't get.
+     * `subscriptionPolicy: 'bypass'` (KTD1's own doc comment on `IntakeSubscriptionPolicy`):
+     * `activeSubscriptionId` is Blawby's own, locally-purchased subscription record — a KrabiClaw
+     * organization has no reason to ever carry one, since its entitlement is governed entirely by
+     * KrabiClaw's own billing/eligibility system (U9's `legal_operations` tier check), a separate
+     * system this facade never queries. Passing `'enforce'` here would check an always-irrelevant
+     * field for every facade caller, not a real revenue gate — `'bypass'` is the mode this type was
+     * built for (see `get-intake-settings.operation.ts`'s doc comment: "for a facade caller that
+     * has already run its own entitlement check").
      */
     const result = await getIntakeSettings(
       {
         organizationId: ctx.legalOperationContext.organizationId,
         templateSlug: template_slug,
-        subscriptionPolicy: 'enforce',
+        subscriptionPolicy: 'bypass',
       },
       ctx.legalOperationContext
     );
@@ -253,13 +270,22 @@ const postIntakesHandler: AppRouteHandler<typeof postIntakesRoute> = async (c) =
   const requestKey = requireRequestReference(ctx.requestReference);
   const body = c.req.valid('json');
   try {
-    // See `getIntakeSettingsHandler`'s comment on `subscriptionPolicy: 'enforce'` — same reasoning here.
+    // See `getIntakeSettingsHandler`'s comment on `subscriptionPolicy: 'bypass'` — same reasoning here.
     const result = await createIntake(
       {
         organizationId: ctx.legalOperationContext.organizationId,
         data: { ...body, ...getCreateIntakeRequestMetadata(c) },
         requestKey,
-        subscriptionPolicy: 'enforce',
+        subscriptionPolicy: 'bypass',
+        /**
+         * `postIntakesDefinition` is gated on `intake-without-payment` alone (Route Contract), but
+         * this same call creates a real Stripe payment link for a payment-enabled practice with a
+         * positive consultation fee — an `intake-payment` action. Passing the `intake-payment`
+         * rollout flag through here closes that gap: a caller can never reach payment-link
+         * creation via this route while `intake-payment` is off, even with `intake-without-payment`
+         * on.
+         */
+        allowPaymentLinkCreation: config.krabiclaw.rolloutGroups['intake-payment'],
       },
       ctx.legalOperationContext
     );
@@ -278,7 +304,11 @@ const getIntakeByRequestReferenceHandler: AppRouteHandler<typeof getIntakeByRequ
   const { request_id: requestId } = c.req.valid('param');
   try {
     const result = await getIntakeByRequestReference(
-      { organizationId: ctx.legalOperationContext.organizationId, requestKey: requestId },
+      {
+        organizationId: ctx.legalOperationContext.organizationId,
+        requestKey: requestId,
+        allowPaymentLinkCreation: config.krabiclaw.rolloutGroups['intake-payment'],
+      },
       ctx.legalOperationContext
     );
     return c.json(result, 200);
@@ -298,29 +328,14 @@ const getIntakeStatusHandler: AppRouteHandler<typeof getIntakeStatusRoute> = asy
   /**
    * `isStaff: true` here ONLY bypasses `getActorAccessibleIntake`'s
    * `metadata.user_id` ownership check — the trusted request-reference
-   * comparison immediately below is this route's actual authorization
-   * mechanism (KTD6), replacing that ownership check for a facade caller.
-   *
-   * Task review Critical fix: this flag must NEVER also reach a response
-   * formatter. `getIntakeStatus` (the non-facade operation) passes
-   * `isAdmin: ctx.isStaff` straight into `formatIntakeStatusResponse`, which
-   * renders the full staff/admin projection (`transcript_summary`,
-   * every `enrichment_*` field, `conversation_id`, `address_id`, and the
-   * unredacted `metadata` block) whenever `isAdmin` is true — regardless of
-   * why `isStaff` was set. Because this route's `actorPolicy` is
-   * `human-or-anonymous`, reusing `getIntakeStatus` here would leak the
-   * staff-only projection to an anonymous caller. So this handler does NOT
-   * call `getIntakeStatus` at all — it formats the response directly via
-   * `intakeSharedHelpers.formatIntakeStatusResponse` with an explicit,
-   * hard-coded `isAdmin: false`, independent of `actorCtx.isStaff`.
+   * comparison inside `getIntakeStatusByRequestReference` is this route's
+   * actual authorization mechanism (KTD6), replacing that ownership check
+   * for a facade caller. See that operation's doc comment for why its
+   * `isAdmin: false` is hard-coded independent of this flag.
    */
   const actorCtx: IntakeActorContext = { ...ctx.legalOperationContext, isStaff: true };
   try {
-    const intake = await getActorAccessibleIntake(uuid, actorCtx);
-    if (intake.krabiclaw_request_key !== requestReference) {
-      return reviewedDomainErrorResponse(c, PUBLIC_INTAKE_NOT_FOUND);
-    }
-    const result = intakeSharedHelpers.formatIntakeStatusResponse(intake, { isAdmin: false });
+    const result = await getIntakeStatusByRequestReference({ uuid, requestReference }, actorCtx);
     return c.json(result, 200);
   } catch (error) {
     const mapped = mapPublicIntakeAccessError(error);
@@ -388,16 +403,7 @@ const postCheckoutSessionHandler: AppRouteHandler<typeof postCheckoutSessionRout
   // See `getIntakeStatusHandler`'s comment on `isStaff: true` — same meaning here.
   const actorCtx: IntakeActorContext = { ...ctx.legalOperationContext, isStaff: true };
   try {
-    /**
-     * Intentional double-fetch: the request-reference ownership check below must happen before
-     * `createCheckoutSession` runs (which fetches the same intake again internally) — the operation
-     * boundary gives no earlier hook to check ownership, so this can't be avoided without restructuring it.
-     */
-    const intake = await getActorAccessibleIntake(uuid, actorCtx);
-    if (intake.krabiclaw_request_key !== requestReference) {
-      return reviewedDomainErrorResponse(c, PUBLIC_INTAKE_NOT_FOUND);
-    }
-    const result = await createCheckoutSession({ uuid, origin }, actorCtx);
+    const result = await createCheckoutSession({ uuid, origin, requestReference }, actorCtx);
     return c.json(result, 201);
   } catch (error) {
     const mapped = mapCheckoutSessionOperationError(error) ?? mapPublicIntakeAccessError(error);

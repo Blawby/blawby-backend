@@ -68,18 +68,7 @@ const insertIntakeRecord = async (params: {
   actorUserId?: string;
   requestKey?: string;
 }): Promise<{ intake: SelectPracticeClientIntake; isNewInsert: boolean }> => {
-  let addressId: string | undefined = undefined;
-  if (params.data.address) {
-    const addressRecord = await upsertAddress({
-      addressData: params.data.address,
-      organizationId: params.organizationId,
-      userId: params.actorUserId,
-      type: 'client_intake',
-    });
-    addressId = addressRecord?.id;
-  }
-
-  const intakeData: InsertPracticeClientIntake = {
+  const buildIntakeData = (addressId: string | undefined): InsertPracticeClientIntake => ({
     id: params.intakeId,
     organization_id: params.organizationId,
     connected_account_id: params.connectedAccountId,
@@ -115,16 +104,55 @@ const insertIntakeRecord = async (params: {
     household_size: params.data.household_size,
     case_strength: params.data.case_strength,
     ...(params.shouldBypassPayment && { succeeded_at: new Date() }),
+  });
+
+  const upsertIntakeAddress = async (): Promise<string | undefined> => {
+    if (!params.data.address) {
+      return undefined;
+    }
+    const addressRecord = await upsertAddress({
+      addressData: params.data.address,
+      organizationId: params.organizationId,
+      userId: params.actorUserId,
+      type: 'client_intake',
+    });
+    return addressRecord?.id;
   };
 
   if (params.requestKey) {
-    return practiceClientIntakesRepository.createWithKrabiClawRequestKey({
-      ...intakeData,
+    /**
+     * `upsertAddress` without a `userId` (true for every anonymous facade caller) always
+     * inserts a brand-new address row — it has no way to look up an existing one to reuse. If
+     * this ran unconditionally before the request-key insert, as it did previously, a
+     * concurrent caller that LOSES the `ON CONFLICT DO NOTHING` race would still have already
+     * created its own address row, permanently orphaned (never referenced by any intake, since
+     * the loser's own `intakeData` — including its `address_id` — is discarded in favor of the
+     * winner's already-persisted row). Insert first, without an address, then only the actual
+     * winner upserts one and attaches it with a follow-up update — a losing caller never writes
+     * an address at all.
+     */
+    const insertResult = await practiceClientIntakesRepository.createWithKrabiClawRequestKey({
+      ...buildIntakeData(undefined),
       krabiclaw_request_key: params.requestKey,
     });
+
+    if (!insertResult.isNewInsert) {
+      return insertResult;
+    }
+
+    const addressId = await upsertIntakeAddress();
+    if (!addressId) {
+      return insertResult;
+    }
+    const withAddress = await practiceClientIntakesRepository.update(insertResult.intake.id, {
+      address_id: addressId,
+    });
+    return { intake: withAddress, isNewInsert: true };
   }
-  // No request key means no concurrent-retry race to lose — every caller here is a genuine insert.
-  const intake = await practiceClientIntakesRepository.create(intakeData);
+
+  // No request key means no concurrent-retry race to lose — every caller here is a genuine insert, so upserting the address before the insert (as before) cannot orphan anything.
+  const addressId = await upsertIntakeAddress();
+  const intake = await practiceClientIntakesRepository.create(buildIntakeData(addressId));
   return { intake, isNewInsert: true };
 };
 
@@ -207,6 +235,16 @@ export const findRecoverableIntakeByRequestKey = async (
  * a prior request under the same `(organizationId, requestKey)` is recovered without repeating
  * the Stripe call or inserting a duplicate row (R24, KTD21) — recovery is checked before any
  * Stripe I/O so a retry never creates a second payment link for the same submission.
+ *
+ * `allowPaymentLinkCreation` (facade callers only): the plan's Route Contract gates
+ * `POST /intakes` on the `intake-without-payment` rollout group alone, but a payment-enabled
+ * practice with a positive consultation fee makes THIS SAME route create a real Stripe payment
+ * link — an `intake-payment` action — regardless of which flag is checked at the middleware
+ * layer. Flipping only `intake-without-payment` on (with `intake-payment` still off) must not let
+ * that path silently through. The ordinary Blawby route (`intake-creation.service.ts`) has no
+ * rollout concept at all and always omits this param, so `undefined` preserves its existing
+ * unconditional behavior — the gate only ever activates when a facade caller explicitly passes
+ * `false`.
  */
 export const createIntake = async (
   {
@@ -214,11 +252,13 @@ export const createIntake = async (
     data,
     requestKey,
     subscriptionPolicy,
+    allowPaymentLinkCreation,
   }: {
     organizationId: string;
     data: CreateIntakeData;
     requestKey?: string;
     subscriptionPolicy: IntakeSubscriptionPolicy;
+    allowPaymentLinkCreation?: boolean;
   },
   ctx: LegalOperationContext
 ): Promise<CreateIntakeResponse> => {
@@ -233,6 +273,19 @@ export const createIntake = async (
     if (requestKey) {
       const recovered = await findRecoverableIntakeByRequestKey(organizationId, requestKey, organization);
       if (recovered) {
+        /**
+         * A same-key retry must be gated by the CURRENT `allowPaymentLinkCreation` value, not just
+         * the fresh-create path below — the recovered intake may have been created (with a real
+         * Stripe payment link) while `intake-payment` was on, and later be retried after that
+         * rollout group was turned back off. Without this check, a retry would still hand back a
+         * live, usable payment link through the `intake-without-payment`-gated route, exactly the
+         * gap the fresh-create check exists to close.
+         */
+        if (recovered.payment_link_url && allowPaymentLinkCreation === false) {
+          throw new HTTPException(403, {
+            message: 'Payment-enabled intake creation is not yet available for this caller',
+          });
+        }
         return recovered;
       }
     }
@@ -248,6 +301,13 @@ export const createIntake = async (
     }
 
     const requiresPayment = Boolean(organization.paymentLinkEnabled) && consultationFee > 0;
+
+    if (requiresPayment && allowPaymentLinkCreation === false) {
+      throw new HTTPException(403, {
+        message: 'Payment-enabled intake creation is not yet available for this caller',
+      });
+    }
+
     const selectedPracticeServiceName = data.practice_service_uuid
       ? (practiceDetails?.services ?? []).find((service) => service.id === data.practice_service_uuid)?.name
       : undefined;
@@ -296,8 +356,8 @@ export const createIntake = async (
       });
     }
 
-    const { intake, isNewInsert } = await uow.transaction(async () =>
-      insertIntakeRecord({
+    const { intake } = await uow.transaction(async () => {
+      const insertResult = await insertIntakeRecord({
         data,
         resolvedAmount,
         organizationId: organization.id,
@@ -308,63 +368,73 @@ export const createIntake = async (
         shouldBypassPayment,
         actorUserId: ctx.userId ?? undefined,
         requestKey,
-      })
-    );
+      });
 
-    /**
-     * Only the request that actually won the `ON CONFLICT DO NOTHING` insert dispatches creation
-     * events — a concurrent same-key caller that lost the race and was redirected to the winner's
-     * row (`isNewInsert: false`) must not re-fire `IntakePaymentCreated`/`IntakeSubmitted` for an
-     * intake it didn't create; two racing callers would otherwise double-dispatch both events for
-     * one intake.
-     */
-    if (isNewInsert) {
-      void IntakePaymentCreated.dispatch(
-        {
-          intake_payment_id: intake.id,
-          uuid: intake.id,
-          stripe_payment_link_id: stripePaymentLink?.id,
-          amount: resolvedAmount,
-          currency: 'usd',
-          client_email: data.email,
-          client_name: data.name,
-          created_at: new Date(),
-        },
-        {
-          actorId: 'organization',
-          organizationId: organization.id,
-        }
-      );
-
-      if (shouldBypassPayment) {
-        void IntakeSubmitted.dispatch(
+      /**
+       * Only the request that actually won the `ON CONFLICT DO NOTHING` insert dispatches
+       * creation events — a concurrent same-key caller that lost the race and was redirected to
+       * the winner's row (`isNewInsert: false`) must not re-fire
+       * `IntakePaymentCreated`/`IntakeSubmitted` for an intake it didn't create; two racing
+       * callers would otherwise double-dispatch both events for one intake.
+       *
+       * Dispatched (and awaited) from inside this transaction callback, not after it resolves:
+       * `BaseEvent.dispatch` checks `isInTransaction()` and, when true, writes the event durably
+       * to the outbox table via the SAME active transaction (`dispatchTransactional` in
+       * `event.ts`) — atomic with the intake insert, so a rollback undoes both together and a
+       * commit guarantees both survive. Dispatching after the transaction had already resolved
+       * would make `isInTransaction()` false, silently downgrading to the weaker fire-and-forget
+       * path and losing that atomicity guarantee.
+       */
+      if (insertResult.isNewInsert) {
+        await IntakePaymentCreated.dispatch(
           {
-            intake_id: intake.id,
-            organization_id: organization.id,
-            organization_name: organization.name,
-            organization_slug: organization.slug ?? undefined,
-            billing_email: organization.billingEmail ?? null,
-            client_email: data.email,
-            client_name: data.name,
+            intake_payment_id: insertResult.intake.id,
+            uuid: insertResult.intake.id,
+            stripe_payment_link_id: stripePaymentLink?.id,
             amount: resolvedAmount,
             currency: 'usd',
-            practice_service_name: selectedPracticeServiceName,
-            jurisdiction: data.address?.state,
-            court_date: data.court_date,
-            has_documents: data.has_documents,
-            case_strength: data.case_strength,
-            desired_outcome: data.desired_outcome,
-            opposing_party: data.opposing_party,
-            description: data.description,
-            submitted_at: new Date().toISOString(),
+            client_email: data.email,
+            client_name: data.name,
+            created_at: new Date(),
           },
           {
             actorId: 'organization',
             organizationId: organization.id,
           }
         );
+
+        if (shouldBypassPayment) {
+          await IntakeSubmitted.dispatch(
+            {
+              intake_id: insertResult.intake.id,
+              organization_id: organization.id,
+              organization_name: organization.name,
+              organization_slug: organization.slug ?? undefined,
+              billing_email: organization.billingEmail ?? null,
+              client_email: data.email,
+              client_name: data.name,
+              amount: resolvedAmount,
+              currency: 'usd',
+              practice_service_name: selectedPracticeServiceName,
+              jurisdiction: data.address?.state,
+              court_date: data.court_date,
+              has_documents: data.has_documents,
+              case_strength: data.case_strength,
+              desired_outcome: data.desired_outcome,
+              opposing_party: data.opposing_party,
+              description: data.description,
+              submitted_at: new Date().toISOString(),
+            },
+            {
+              actorId: 'organization',
+              organizationId: organization.id,
+            }
+          );
+        }
       }
-    }
+
+      return insertResult;
+    });
 
     return toCreateIntakeResponse(intake, organization, stripePaymentLink?.url ?? null);
   } catch (error) {

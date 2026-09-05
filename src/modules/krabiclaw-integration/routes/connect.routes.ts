@@ -4,9 +4,11 @@ import { createKrabiClawFacadeRouteMiddleware } from '@/modules/krabiclaw-integr
 import { registerFacadeRoute } from '@/modules/krabiclaw-integration/route-registry';
 import type { KrabiClawFacadeRouteDefinition } from '@/modules/krabiclaw-integration/types/route-policy.types';
 import {
+  krabiclawDependencyUnavailableResponse,
   krabiclawForbiddenResponse,
   krabiclawInvalidTokenResponse,
   krabiclawRateLimitedResponse,
+  krabiclawUpstreamInvalidResponse,
   krabiclawValidationFailedResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
 import {
@@ -14,7 +16,10 @@ import {
   krabiclawResourceNotFoundResponse,
   krabiclawStateConflictResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-route-error-responses';
-import { krabiclawStrictSchema } from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
+import {
+  krabiclawFacadeHeadersSchema,
+  krabiclawStrictSchema,
+} from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
 import { onboardingValidations } from '@/modules/onboarding/validations/onboarding.validation';
 import { connectValidations } from '@/modules/stripe/validations/connect.validation';
 import { routeBuilder } from '@/shared/router/route-builder';
@@ -41,6 +46,8 @@ const policyResponses = {
   401: krabiclawInvalidTokenResponse,
   403: krabiclawForbiddenResponse,
   429: krabiclawRateLimitedResponse,
+  502: krabiclawUpstreamInvalidResponse,
+  503: krabiclawDependencyUnavailableResponse,
 };
 
 const connectDomainResponses = {
@@ -80,6 +87,8 @@ const postConnectedAccountsDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const postConnectedAccountsRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: postConnectedAccountsDefinition.method,
   path: postConnectedAccountsDefinition.path,
   tags: ['KrabiClaw Facade', 'Connect'],
@@ -88,6 +97,7 @@ const postConnectedAccountsRoute = routeBuilder.build({
     'Creates (or recovers, by request_key) a Stripe connected account and hosted-onboarding session for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(postConnectedAccountsDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     body: {
       content: { 'application/json': { schema: connectedAccountCreateSchema } },
       description: 'Connected account creation data',
@@ -115,12 +125,15 @@ const getConnectStatusDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getConnectStatusRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getConnectStatusDefinition.method,
   path: getConnectStatusDefinition.path,
   tags: ['KrabiClaw Facade', 'Connect'],
   summary: 'Get Connect onboarding status (KrabiClaw facade)',
   description: 'Retrieve Stripe Connect onboarding status for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getConnectStatusDefinition)],
+  request: { headers: krabiclawFacadeHeadersSchema },
   responses: {
     ...policyResponses,
     ...connectDomainResponses,
@@ -149,6 +162,8 @@ const postAccountSessionDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const postAccountSessionRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: postAccountSessionDefinition.method,
   path: postAccountSessionDefinition.path,
   tags: ['KrabiClaw Facade', 'Connect'],
@@ -156,6 +171,7 @@ const postAccountSessionRoute = routeBuilder.build({
   description: 'Create an embedded Stripe Account Session for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(postAccountSessionDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     body: {
       content: { 'application/json': { schema: accountSessionCreateSchema } },
       description: 'Requested embedded-component set',
@@ -183,12 +199,15 @@ const getConnectAccountDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getConnectAccountRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getConnectAccountDefinition.method,
   path: getConnectAccountDefinition.path,
   tags: ['KrabiClaw Facade', 'Connect'],
   summary: 'Get the connected Stripe account (KrabiClaw facade)',
   description: 'Retrieve connected-account status and readiness for the caller-verified organization.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getConnectAccountDefinition)],
+  request: { headers: krabiclawFacadeHeadersSchema },
   responses: {
     ...policyResponses,
     ...connectDomainResponses,

@@ -4,9 +4,11 @@ import { createKrabiClawFacadeRouteMiddleware } from '@/modules/krabiclaw-integr
 import { registerFacadeRoute } from '@/modules/krabiclaw-integration/route-registry';
 import type { KrabiClawFacadeRouteDefinition } from '@/modules/krabiclaw-integration/types/route-policy.types';
 import {
+  krabiclawDependencyUnavailableResponse,
   krabiclawForbiddenResponse,
   krabiclawInvalidTokenResponse,
   krabiclawRateLimitedResponse,
+  krabiclawUpstreamInvalidResponse,
   krabiclawValidationFailedResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-error-schemas';
 import {
@@ -14,6 +16,8 @@ import {
   krabiclawStateConflictResponse,
 } from '@/modules/krabiclaw-integration/validations/facade-route-error-responses';
 import {
+  krabiclawFacadeHeadersSchema,
+  krabiclawFacadeHeadersWithOriginatingIpSchema,
   krabiclawLocalResourceIdSchema,
   krabiclawStrictSchema,
 } from '@/modules/krabiclaw-integration/validations/facade-schema.helpers';
@@ -45,6 +49,8 @@ const policyResponses = {
   401: krabiclawInvalidTokenResponse,
   403: krabiclawForbiddenResponse,
   429: krabiclawRateLimitedResponse,
+  502: krabiclawUpstreamInvalidResponse,
+  503: krabiclawDependencyUnavailableResponse,
 };
 
 /** Every engagement route's reviewed domain 4xx codes are a subset of {404, 409} (`mapEngagementOperationError`, `handlers.ts`) — no route in this family produces a reviewed 422. */
@@ -86,6 +92,8 @@ const createEngagementContractFacadeSchema = krabiclawStrictSchema(
 );
 
 const createEngagementContractRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: createEngagementContractDefinition.method,
   path: createEngagementContractDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
@@ -95,6 +103,7 @@ const createEngagementContractRoute = routeBuilder.build({
     'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(createEngagementContractDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     body: {
       content: { 'application/json': { schema: createEngagementContractFacadeSchema } },
       description: 'Engagement contract creation data',
@@ -141,6 +150,8 @@ const listEngagementContractsResponseSchema = z.object({
 });
 
 const listEngagementContractsRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: listEngagementContractsDefinition.method,
   path: listEngagementContractsDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
@@ -149,7 +160,7 @@ const listEngagementContractsRoute = routeBuilder.build({
     'Retrieves a paginated list of engagement contracts for the caller-verified organization. ' +
     'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(listEngagementContractsDefinition)],
-  request: { query: listEngagementContractsQueryFacadeSchema },
+  request: { headers: krabiclawFacadeHeadersSchema, query: listEngagementContractsQueryFacadeSchema },
   responses: {
     ...policyResponses,
     ...engagementNotFoundOnlyResponses,
@@ -173,6 +184,8 @@ const getEngagementContractDefinition: KrabiClawFacadeRouteDefinition = {
 };
 
 const getEngagementContractRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: getEngagementContractDefinition.method,
   path: getEngagementContractDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
@@ -181,7 +194,7 @@ const getEngagementContractRoute = routeBuilder.build({
     'Retrieves a single engagement contract by ID for the caller-verified organization. ' +
     'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(getEngagementContractDefinition)],
-  request: { params: contractIdParamSchema },
+  request: { headers: krabiclawFacadeHeadersSchema, params: contractIdParamSchema },
   responses: {
     ...policyResponses,
     ...engagementNotFoundOnlyResponses,
@@ -210,6 +223,8 @@ const updateEngagementContractFacadeSchema = krabiclawStrictSchema(
 );
 
 const updateEngagementContractRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: updateEngagementContractDefinition.method,
   path: updateEngagementContractDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
@@ -219,6 +234,7 @@ const updateEngagementContractRoute = routeBuilder.build({
     'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(updateEngagementContractDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersSchema,
     params: contractIdParamSchema,
     body: {
       content: { 'application/json': { schema: updateEngagementContractFacadeSchema } },
@@ -266,6 +282,8 @@ const updateEngagementContractStatusFacadeSchema = krabiclawStrictSchema(
 );
 
 const updateEngagementContractStatusRoute = routeBuilder.build({
+  // The facade never returns a bare 500 — every failure is reserialized into a reviewed 4xx/5xx code (KTD8).
+  excludeDefaultResponses: [500],
   method: updateEngagementContractStatusDefinition.method,
   path: updateEngagementContractStatusDefinition.path,
   tags: ['KrabiClaw Facade', 'Engagement Contracts'],
@@ -275,6 +293,7 @@ const updateEngagementContractStatusRoute = routeBuilder.build({
     'Blawby verifies only that the caller asserted a human actor, not firm-staff membership or role — the KrabiClaw BFF is solely responsible for actor eligibility.',
   middleware: [createKrabiClawFacadeRouteMiddleware(updateEngagementContractStatusDefinition)],
   request: {
+    headers: krabiclawFacadeHeadersWithOriginatingIpSchema,
     params: contractIdParamSchema,
     body: {
       content: { 'application/json': { schema: updateEngagementContractStatusFacadeSchema } },

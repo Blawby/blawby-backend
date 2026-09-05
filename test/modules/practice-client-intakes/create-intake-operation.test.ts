@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { createIntake } from '@/modules/practice-client-intakes/operations/create-intake.operation';
 import { practiceClientIntakesRepository } from '@/modules/practice-client-intakes/database/queries/practice-client-intakes.repository';
 import { createPracticeDetails } from '@/modules/practice/database/queries/practice-details.repository';
+import { addresses } from '@/modules/practice/database/schema/addresses.schema';
 import { intakeTemplates } from '@/modules/practice/database/schema/intake-templates.schema';
 import { organizations } from '@/schema/better-auth-schema';
 import { authHelpers } from '@/test/helpers/auth';
@@ -121,6 +122,79 @@ describe('createIntake operation — facade idempotency and tenant isolation', (
 
     const stored = await practiceClientIntakesRepository.findByKrabiClawRequestKey(org.id, requestKey);
     expect(stored?.id).toBe(first.uuid);
+  });
+
+  it('rejects payment-link creation when the caller explicitly signals the payment rollout is off, even for a payment-enabled practice', async () => {
+    await intakeHelpers.seedPublicIntakeOrganization(org.id);
+    await enablePaidIntake(org.id, 15000);
+
+    await expect(
+      createIntake(
+        { organizationId: org.id, data: baseData(), subscriptionPolicy: 'enforce', allowPaymentLinkCreation: false },
+        ctx
+      )
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mockPaymentLinksCreate).not.toHaveBeenCalled();
+  });
+
+  it('still creates a payment link when allowPaymentLinkCreation is omitted (the ordinary Blawby route has no rollout concept)', async () => {
+    await intakeHelpers.seedPublicIntakeOrganization(org.id);
+    await enablePaidIntake(org.id, 15000);
+    mockPaymentLinksCreate.mockResolvedValueOnce(
+      stripeResponse({ id: 'plink_2', url: 'https://buy.stripe.com/test_2' })
+    );
+
+    const response = await createIntake({ organizationId: org.id, data: baseData(), subscriptionPolicy: 'enforce' }, ctx);
+
+    expect(response.payment_link_url).toBe('https://buy.stripe.com/test_2');
+    expect(mockPaymentLinksCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a same-key retry that would recover a payment link once the payment rollout is turned back off', async () => {
+    await intakeHelpers.seedPublicIntakeOrganization(org.id);
+    await enablePaidIntake(org.id, 15000);
+    mockPaymentLinksCreate.mockResolvedValueOnce(
+      stripeResponse({ id: 'plink_3', url: 'https://buy.stripe.com/test_3' })
+    );
+
+    const requestKey = randomUUID();
+    const data = baseData();
+
+    // First attempt succeeds while the payment rollout is on (or the caller has no rollout concept at all).
+    const first = await createIntake({ organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' }, ctx);
+    expect(first.payment_link_url).toBe('https://buy.stripe.com/test_3');
+
+    // The retry hits the recovery path (findRecoverableIntakeByRequestKey), not fresh creation — it must be gated by the CURRENT allowPaymentLinkCreation value too, not just skip the check entirely because a row already exists.
+    await expect(
+      createIntake(
+        { organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce', allowPaymentLinkCreation: false },
+        ctx
+      )
+    ).rejects.toMatchObject({ status: 403 });
+    expect(mockPaymentLinksCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes exactly one address row when two callers race on the same request key, never an orphan for the loser', async () => {
+    await intakeHelpers.seedPublicIntakeOrganization(org.id);
+    const requestKey = randomUUID();
+    const data = {
+      ...baseData(),
+      address: { line1: '1 Main St', city: 'Springfield', state: 'IL', postal_code: '62701', country: 'US' },
+    };
+
+    const [first, second] = await Promise.all([
+      createIntake({ organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' }, ctx),
+      createIntake({ organizationId: org.id, data, requestKey, subscriptionPolicy: 'enforce' }, ctx),
+    ]);
+
+    expect(second.uuid).toBe(first.uuid);
+    const stored = await practiceClientIntakesRepository.findByKrabiClawRequestKey(org.id, requestKey);
+    expect(stored?.address_id).toBeTruthy();
+
+    // Anonymous callers (`ctx.userId === null`) have no existing address to reuse, so `upsertAddress` always inserts a fresh row -- exactly one, from the actual insert winner, never a second orphaned row from the loser of the `ON CONFLICT DO NOTHING` race.
+    const addressRows = await getTestDb().select().from(addresses).where(eq(addresses.organization_id, org.id));
+    expect(addressRows).toHaveLength(1);
+    expect(addressRows[0]?.id).toBe(stored?.address_id);
   });
 
   it('reuses the same intake id and Stripe idempotency key when the DB persist is lost after Stripe already succeeded', async () => {

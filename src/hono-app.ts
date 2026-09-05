@@ -85,6 +85,18 @@ const apiRateLimit = rateLimit({ scope: rateLimiter.getApiRateLimitIdentifier })
 const krabiclawFacadePreAuthRateLimit = rateLimit({ routeKey: 'krabiclaw-facade-preauth', scope: 'ip' });
 app.use('/api/*', async (c, next) => {
   if (isKrabiclawFacadeRequest(c.req.path)) {
+    /**
+     * The default-off global kill switch (R17, AE5) must be the cheapest, first-checked gate for
+     * a facade request — this outer rate limiter runs before the request ever reaches the facade
+     * sub-app's own middleware (where that check actually lives, in
+     * `mountKrabiClawFacadeGlobalMiddleware`). Checking it here too, before spending any
+     * rate-limit I/O, means a request to a disabled facade consumes no rate-limit budget at all,
+     * instead of an attacker being able to spend (and poison) that budget against a route that
+     * will 404 anyway.
+     */
+    if (!config.krabiclaw.facadeEnabled) {
+      return next();
+    }
     return krabiclawFacadePreAuthRateLimit(c, next);
   }
   return apiRateLimit(c, next);

@@ -3,9 +3,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createIntake } from '@/modules/practice-client-intakes/operations/create-intake.operation';
 import { getIntakeByRequestReference } from '@/modules/practice-client-intakes/operations/get-intake-by-request-reference.operation';
+import { createPracticeDetails } from '@/modules/practice/database/queries/practice-details.repository';
+import { intakeTemplates } from '@/modules/practice/database/schema/intake-templates.schema';
+import { organizations } from '@/schema/better-auth-schema';
 import { authHelpers } from '@/test/helpers/auth';
+import { getTestDb } from '@/test/helpers/db';
+import { intakeHelpers } from '@/test/modules/practice-client-intakes/helpers/intake';
+import { eq } from 'drizzle-orm';
+import { stripe } from '@/shared/utils/stripe-client';
 import type { LegalOperationContext } from '@/shared/types/legal-operation-context';
 import type { TestOrganization } from '@/test/types/shared';
+
+const enablePaidIntake = async (organizationId: string, consultationFee: number): Promise<void> => {
+  await getTestDb().update(organizations).set({ paymentLinkEnabled: true }).where(eq(organizations.id, organizationId));
+  const owner = await authHelpers.createTestUser();
+  await createPracticeDetails({
+    organization_id: organizationId,
+    user_id: owner.id,
+    consultation_fee: consultationFee,
+  });
+  await getTestDb().insert(intakeTemplates).values({
+    organization_id: organizationId,
+    slug: 'default',
+    name: 'Default Intake',
+    status: 'published',
+    is_default: true,
+  });
+};
 
 // Mocked at the module boundary — these tests only exercise recovery/tenant scoping, never real Stripe I/O.
 vi.mock('@/shared/utils/stripe-client', () => ({
@@ -64,6 +88,32 @@ describe('getIntakeByRequestReference operation — tenant-checked recovery', ()
     const recovered = await getIntakeByRequestReference({ organizationId: org.id, requestKey }, ctx);
 
     expect(recovered).toEqual(created);
+  });
+
+  it('rejects recovering a payment-link-bearing intake once the payment rollout is turned back off', async () => {
+    await intakeHelpers.seedPublicIntakeOrganization(org.id);
+    await enablePaidIntake(org.id, 15000);
+    const requestKey = randomUUID();
+    // SAFETY: the operation only reads `.id`/`.url` off the created payment link — a minimal fixture with just those fields is enough to exercise the recovery-gate this test checks.
+    vi.mocked(stripe.paymentLinks.create).mockResolvedValueOnce({
+      id: 'plink_ref_test',
+      url: 'https://buy.stripe.com/test_ref',
+      lastResponse: { headers: {}, requestId: 'req_test', statusCode: 200 },
+    } as never);
+    // SAFETY: same minimal-fixture justification as the `create` mock above.
+    vi.mocked(stripe.paymentLinks.retrieve).mockResolvedValue({
+      id: 'plink_ref_test',
+      url: 'https://buy.stripe.com/test_ref',
+      lastResponse: { headers: {}, requestId: 'req_test', statusCode: 200 },
+    } as never);
+
+    const created = await createIntake({ organizationId: org.id, data: baseData(), requestKey, subscriptionPolicy: 'enforce' }, ctx);
+    expect(created.payment_link_url).toBeTruthy();
+
+    // The read-only recovery route is gated by the same `intake-payment` rollout flag as `createIntake`'s own retry path — it must not still hand back a live payment link once that rollout group is off, even though this route belongs to `intake-without-payment`.
+    await expect(
+      getIntakeByRequestReference({ organizationId: org.id, requestKey, allowPaymentLinkCreation: false }, ctx)
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it('does not recover an intake created under the same request reference for a different organization', async () => {

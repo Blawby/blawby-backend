@@ -198,6 +198,19 @@ const runFamilyRateLimitGate = async (
 export const createKrabiClawFacadeRouteMiddleware =
   (definition: KrabiClawFacadeRouteDefinition): MiddlewareHandler<AppContext> =>
   async (c, next) => {
+    /**
+     * Hono auto-serves HEAD for every registered GET route by internally matching the route
+     * under "GET" while leaving the actual `Request` (and so `c.req.method`) as "HEAD" — the
+     * request body is discarded afterward, but the full handler and every middleware before it,
+     * including this one, still runs (verified against `hono-base.js`'s `#dispatch`). None of
+     * this facade's routes declare HEAD support, so an undeclared method must never reach the
+     * expensive auth/rate-limit/D1 chain below it — reject it here, first, before any of that
+     * work runs.
+     */
+    if (c.req.method.toLowerCase() !== definition.method) {
+      throw new KrabiClawFacadeValidationError(`Method ${c.req.method} is not supported for this route`);
+    }
+
     if (!config.krabiclaw.facadeEnabled) {
       throw new KrabiClawFacadeDisabledError();
     }

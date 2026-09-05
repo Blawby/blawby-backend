@@ -391,6 +391,21 @@ describe('krabiclaw facade whole-app gate ordering (U6)', () => {
     );
   });
 
+  describe('HEAD is rejected before any dependency work, even though Hono auto-serves it for a registered GET route', () => {
+    it('HEAD /practice/details -> 400 facade validation error, never reaching D1', async () => {
+      // Hono's own `#dispatch` matches HEAD by internally looking up the GET route while
+      // leaving the actual request (and `c.req.method`) as HEAD — without an explicit method
+      // check, that means the full handler and every middleware before it (auth, rate limits,
+      // D1 identity resolution) would silently run for an undeclared method.
+      const res = await krabiclawIntegrationApp.request('/practice/details', {
+        method: 'HEAD',
+        headers: humanHeaders('org-a'),
+      });
+      expect(res.status).toBe(400);
+      expectNoD1Call();
+    });
+  });
+
   describe('the facade behaves identically when mounted under the real, fully-assembled root app (@/hono-app), not just the standalone module', () => {
     it("the disabled-switch 404 keeps the facade's own reviewed envelope, not responseMiddleware's differently-shaped one", async () => {
       configState.facadeEnabled = false;
