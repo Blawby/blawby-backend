@@ -1,4 +1,6 @@
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
+import { getLogger } from '@logtape/logtape';
+import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+
 import {
   practiceClientIntakesSchema,
   type InsertPracticeClientIntake,
@@ -7,6 +9,7 @@ import {
 import { getActiveTx } from '@/shared/database/uow';
 import { escapeLikeWildcards } from '@/shared/utils/database';
 
+const logger = getLogger(['practice-client-intakes', 'repository']);
 const { practiceClientIntakes } = practiceClientIntakesSchema;
 
 const buildIntakeConditions = ({
@@ -77,26 +80,71 @@ const findByKrabiClawRequestKey = async (
   return intake;
 };
 
+const PG_UNIQUE_VIOLATION = '23505';
+
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- narrowing an arbitrary thrown value to inspect a driver-supplied `.code`/`.cause`, not a domain payload with a knowable shape.
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+const readPgErrorCode = (error: unknown): unknown =>
+  isRecord(error) ? (error.code ?? (isRecord(error.cause) ? error.cause.code : undefined)) : undefined;
+
+/**
+ * `isNewInsert` distinguishes the actual insert winner from a concurrent caller that lost the
+ * race and fell through to the existing row — callers must gate any creation-only side effect
+ * (e.g. domain event dispatch) on this flag, or two callers racing on the same
+ * `(organization_id, krabiclaw_request_key)` would both fire it for one intake.
+ *
+ * The caller's `id` is deterministically derived from `(organizationId, requestKey)`
+ * (`deriveIntakeIdFromRequestKey` in `create-intake.operation.ts`), so two genuinely concurrent
+ * racing inserts always attempt the SAME primary key, not just the same
+ * `(organization_id, krabiclaw_request_key)` pair. `onConflictDoNothing`'s `target` only
+ * suppresses a conflict on that named unique index — it does not, and cannot, also suppress a
+ * conflict Postgres happens to raise against the primary key first, which depends on internal
+ * index-check ordering and is not guaranteed to always resolve one particular way. A raw
+ * `23505 unique_violation` on any constraint means the same thing as a suppressed one: this
+ * caller lost the race.
+ *
+ * The insert runs inside `getActiveTx().transaction(...)` (drizzle's own nested-transaction
+ * support, a real `SAVEPOINT`/`ROLLBACK TO SAVEPOINT` — never `uow.transaction`'s REQUIRED-only
+ * wrapper, which reuses the outer transaction directly with no savepoint). Once any statement in
+ * a Postgres transaction errors, the whole transaction is aborted and every later statement
+ * fails until a rollback — a bare `try/catch` around the insert without a savepoint would leave
+ * the surrounding `uow.transaction(...)` (started by `createIntake`) poisoned, so the very
+ * `findByKrabiClawRequestKey` fallback below would then fail too. The savepoint rolls back only
+ * this insert on a caught unique violation, leaving the outer transaction healthy.
+ */
 const createWithKrabiClawRequestKey = async (
   data: InsertPracticeClientIntake & { krabiclaw_request_key: string }
-): Promise<SelectPracticeClientIntake> => {
-  const [intake] = await getActiveTx()
-    .insert(practiceClientIntakes)
-    .values(data)
-    .onConflictDoNothing({
-      target: [practiceClientIntakes.organization_id, practiceClientIntakes.krabiclaw_request_key],
-      where: sql`${practiceClientIntakes.krabiclaw_request_key} IS NOT NULL`,
-    })
-    .returning();
+): Promise<{ intake: SelectPracticeClientIntake; isNewInsert: boolean }> => {
+  let intake: SelectPracticeClientIntake | undefined = undefined;
+  try {
+    intake = await getActiveTx().transaction(async (savepointTx) => {
+      const [inserted] = await savepointTx
+        .insert(practiceClientIntakes)
+        .values(data)
+        .onConflictDoNothing({
+          target: [practiceClientIntakes.organization_id, practiceClientIntakes.krabiclaw_request_key],
+          where: sql`${practiceClientIntakes.krabiclaw_request_key} IS NOT NULL`,
+        })
+        .returning();
+      return inserted;
+    });
+  } catch (error) {
+    if (readPgErrorCode(error) !== PG_UNIQUE_VIOLATION) {
+      throw error;
+    }
+    logger.warn('krabiclaw request-key insert lost a primary-key race; recovering the winning row', {
+      organizationId: data.organization_id,
+    });
+  }
   if (intake) {
-    return intake;
+    return { intake, isNewInsert: true };
   }
 
   const existing = await findByKrabiClawRequestKey(data.organization_id, data.krabiclaw_request_key);
   if (!existing) {
     throw new Error('Failed to create idempotent krabiclaw intake');
   }
-  return existing;
+  return { intake: existing, isNewInsert: false };
 };
 
 const findById = async (id: string): Promise<SelectPracticeClientIntake | undefined> => {
@@ -154,13 +202,34 @@ const findByStripeCheckoutSessionId = async (sessionId: string): Promise<SelectP
   return row;
 };
 
+/**
+ * Conditionally attach a Stripe Checkout Session id to an intake that has none yet. The
+ * `IS NULL` guard makes this a compare-and-set: only the first caller to reach this row wins,
+ * and every other concurrent caller (any `requestKey`/session pairing) gets back `undefined`
+ * instead of overwriting an already-attached session id. Callers must re-read the row to learn
+ * which session id actually won (R10).
+ */
+const attachCheckoutSessionIfAbsent = async (
+  id: string,
+  sessionId: string
+): Promise<SelectPracticeClientIntake | undefined> => {
+  const [updated] = await getActiveTx()
+    .update(practiceClientIntakes)
+    .set({ stripe_checkout_session_id: sessionId, updated_at: new Date() })
+    .where(and(eq(practiceClientIntakes.id, id), isNull(practiceClientIntakes.stripe_checkout_session_id)))
+    .returning();
+  return updated;
+};
+
 const update = async (id: string, data: Partial<SelectPracticeClientIntake>): Promise<SelectPracticeClientIntake> => {
   const [updated] = await getActiveTx()
     .update(practiceClientIntakes)
     .set({ ...data, updated_at: new Date() })
     .where(eq(practiceClientIntakes.id, id))
     .returning();
-  if (!updated) throw new Error(`PracticeClientIntake not found for id: ${id}`);
+  if (!updated) {
+    throw new Error(`PracticeClientIntake not found for id: ${id}`);
+  }
   return updated;
 };
 
@@ -363,6 +432,7 @@ export const practiceClientIntakesRepository = {
   findByStripePaymentLinkId,
   findByStripePaymentIntentId,
   findByStripeCheckoutSessionId,
+  attachCheckoutSessionIfAbsent,
   update,
   updateStatus,
   setInvitationPrefillToken,

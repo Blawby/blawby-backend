@@ -1,8 +1,10 @@
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { routePath } from 'hono/route';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { getLogger } from '@logtape/logtape';
 
+import { isKrabiclawFacadeRequest } from '@/shared/middleware/isKrabiclawFacadeRequest';
 import { isProduction } from '@/shared/utils/env';
 import { logError } from './logger';
 
@@ -53,6 +55,10 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
   c.set('startTime', startTime);
 
   try {
+    // The rule below expects a Node-style callback's result to be `return`ed immediately, but
+    // `next` here is Hono's async middleware continuation — response-time measurement and
+    // Logging genuinely need to run after it resolves, not be skipped by an early return.
+    // oxlint-disable-next-line node/callback-return
     await next();
 
     // Calculate and log response time
@@ -61,9 +67,18 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
     // Request logging (disabled in production for performance)
     if (!isProduction()) {
+      /**
+       * `c.req.url` includes the full query string. Two facade routes carry R23-prohibited values
+       * there or in the matched path itself: the anonymous intake follow-up request reference (a
+       * path segment) and the Stripe Checkout session ID (a `session_id` query parameter). For any
+       * request under the facade's mount path, log the registered route pattern (`routePath(c)`)
+       * instead of the matched URL — the same sanitization the root request logger in
+       * `hono-app.ts` and the facade's own audit logger already apply.
+       */
+      const url = isKrabiclawFacadeRequest(c.req.path) ? routePath(c) : c.req.url;
       logger.info('✅ {method} {url} - {responseTime}ms', {
         method: c.req.method,
-        url: c.req.url,
+        url,
         responseTime,
       });
     }
@@ -71,6 +86,9 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
     return;
   } catch (error) {
     const responseTime = Date.now() - startTime;
+    // Same sanitization as the success-path request log above (R23) — error-path logging is not
+    // Gated on `!isProduction()`, so an unsanitized facade URL here would leak in production too.
+    const url = isKrabiclawFacadeRequest(c.req.path) ? routePath(c) : c.req.url;
 
     // Handle HTTP exceptions (Hono's built-in handling might not return JSON)
     if (error instanceof HTTPException) {
@@ -78,7 +96,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
       logError(error, {
         method: c.req.method,
-        url: c.req.url,
+        url,
         statusCode: status,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
@@ -106,7 +124,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
       logError(error, {
         method: c.req.method,
-        url: c.req.url,
+        url,
         statusCode: safeStatus,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
@@ -126,7 +144,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
 
       logError(error, {
         method: c.req.method,
-        url: c.req.url,
+        url,
         statusCode: safeStatus,
         userId: c.get('userId'),
         organizationId: c.get('activeOrganizationId'),
@@ -161,7 +179,7 @@ export const responseMiddleware = (): MiddlewareHandler => async (c: Context, ne
     // Handle unexpected errors
     logError(error, {
       method: c.req.method,
-      url: c.req.url,
+      url,
       statusCode: 500,
       userId: c.get('userId'),
       organizationId: c.get('activeOrganizationId'),

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createCheckoutSession } from '@/modules/practice-client-intakes/operations/create-checkout-session.operation';
+import { stripe } from '@/shared/utils/stripe-client';
 import { getIntakeById } from '@/modules/practice-client-intakes/operations/get-intake-by-id.operation';
 import { getIntakeSettings } from '@/modules/practice-client-intakes/operations/get-intake-settings.operation';
 import { getIntakeStatus } from '@/modules/practice-client-intakes/operations/get-intake-status.operation';
@@ -98,6 +99,65 @@ describe('practice-client-intakes actor-scoped operations — tenant and actor i
       await expect(
         createCheckoutSession({ uuid: intake.id }, clientCtx(org.id, randomUUID()))
       ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('passes a stable Stripe idempotency key derived from the trusted request reference, so a retry cannot create a duplicate Checkout Session', async () => {
+      await getTestDb().insert(stripeConnectedAccounts).values(
+        intakeHelpers.mockConnectedAccount({
+          organization_id: org.id,
+          stripe_account_id: `acct_checkout_${org.id.replace(/-/g, '').slice(0, 16)}`,
+          charges_enabled: true,
+          payouts_enabled: true,
+          details_submitted: true,
+        })
+      );
+      const intake = await intakeHelpers.createTestIntake(org.id, {
+        status: 'open',
+        amount: 5000,
+        krabiclaw_request_key: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+        metadata: { email: 'client@example.com', name: 'Client Example' },
+      });
+      // SAFETY: the operation only reads `.id`/`.url` off the resolved session — a minimal fixture with just those fields exercises the idempotency-key wiring this test checks without needing Stripe's full `Checkout.Session` shape.
+      vi.mocked(stripe.checkout.sessions.create).mockResolvedValue({
+        id: 'cs_test_1',
+        url: 'https://checkout.stripe.com/test_1',
+      } as never);
+
+      await createCheckoutSession(
+        { uuid: intake.id, requestReference: '3fa85f64-5717-4562-b3fc-2c963f66afa6' },
+        staffCtx(org.id)
+      );
+
+      expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.anything(),
+        { idempotencyKey: `krabiclaw-checkout:${org.id}:${intake.id}:3fa85f64-5717-4562-b3fc-2c963f66afa6` }
+      );
+    });
+
+    it('passes no idempotency key when the caller supplies no request reference (the ordinary Blawby route has no facade concept)', async () => {
+      await getTestDb().insert(stripeConnectedAccounts).values(
+        intakeHelpers.mockConnectedAccount({
+          organization_id: org.id,
+          stripe_account_id: `acct_checkout2_${org.id.replace(/-/g, '').slice(0, 16)}`,
+          charges_enabled: true,
+          payouts_enabled: true,
+          details_submitted: true,
+        })
+      );
+      const intake = await intakeHelpers.createTestIntake(org.id, {
+        status: 'open',
+        amount: 5000,
+        metadata: { email: 'client@example.com', name: 'Client Example' },
+      });
+      // SAFETY: the operation only reads `.id`/`.url` off the resolved session — a minimal fixture with just those fields exercises the idempotency-key wiring this test checks without needing Stripe's full `Checkout.Session` shape.
+      vi.mocked(stripe.checkout.sessions.create).mockResolvedValue({
+        id: 'cs_test_2',
+        url: 'https://checkout.stripe.com/test_2',
+      } as never);
+
+      await createCheckoutSession({ uuid: intake.id }, staffCtx(org.id));
+
+      expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(expect.anything(), undefined);
     });
   });
 

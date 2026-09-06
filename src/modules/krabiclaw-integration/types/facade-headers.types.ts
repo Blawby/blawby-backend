@@ -2,11 +2,11 @@ import type { KrabiClawActorKind } from '@/modules/krabiclaw-integration/types/i
 
 export interface KrabiClawFacadeHeaders {
   externalOrganizationId: string;
-  externalActorId: string | null;
+  /** Required for both actor kinds (R4). Never triggers a D1 user lookup unless `actorKind === 'human'` (R20). */
+  externalActorId: string;
   actorKind: KrabiClawActorKind;
-}
-
-export interface KrabiClawFacadeAuthContext {
-  headers: KrabiClawFacadeHeaders;
-  clientId: string;
+  /** `x-krabiclaw-request-reference` — a UUID v4, present only when the caller sent it (KTD6). */
+  requestReference: string | null;
+  /** `x-krabiclaw-originating-client-ip` — present only when the caller sent it (R27). */
+  trustedOriginatingClientIp: string | null;
 }

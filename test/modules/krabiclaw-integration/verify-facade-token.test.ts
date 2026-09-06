@@ -106,11 +106,23 @@ const mintTokenWithSubject = async (subject: string): Promise<string> => {
 };
 
 describe('verifyFacadeToken', () => {
-  it('accepts a valid token from the configured fixed client', async () => {
+  it('accepts a valid token from the configured fixed client and retains its normalized granted legal scopes', async () => {
     const { client, accessToken } = await issueToken();
     configState.oauthClientId = client.client_id;
 
-    await expect(verifyFacadeToken(accessToken, auth)).resolves.toEqual({ clientId: client.client_id });
+    await expect(verifyFacadeToken(accessToken, auth)).resolves.toEqual({
+      clientId: client.client_id,
+      grantedScopes: new Set(KRABICLAW_LEGAL_SCOPES),
+    });
+  });
+
+  it('normalizes granted scopes to only the recognized legal:* set, dropping any other scope', async () => {
+    const { client, accessToken } = await issueToken(`openid ${KRABICLAW_LEGAL_SCOPES[0]}`);
+    configState.oauthClientId = client.client_id;
+
+    const result = await verifyFacadeToken(accessToken, auth);
+
+    expect(result.grantedScopes).toEqual(new Set([KRABICLAW_LEGAL_SCOPES[0]]));
   });
 
   it('rejects a missing token', async () => {

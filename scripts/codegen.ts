@@ -7,8 +7,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const isDevelopment = (): boolean => (process.env.APP_ENV?.toLowerCase() ?? 'development') === 'development';
@@ -31,29 +30,28 @@ const MODULE_REGISTRY_OUTPUT = join(process.cwd(), 'src/shared/router/modules.ge
 const MCP_TOOLS_OUTPUT = join(process.cwd(), 'src/modules/mcp/mcp.tools.generated.ts');
 const UOW_OUTPUT = join(process.cwd(), 'src/shared/database/uow.generated.ts');
 
-const EXCLUDED_MODULES = [
-  'auth',
-  'analytics',
-  'billing',
-  'admin',
-  'customers',
-  'events',
-  'health',
-  'mcp',
-  'settings',
-  // TODO(U4): krabiclaw-integration has services/schema/validations but no http.ts
-  // Yet (U1-U3 built its identity/directory foundation without exposing routes).
-  // Remove this exclusion once U4 adds src/modules/krabiclaw-integration/http.ts.
-  'krabiclaw-integration',
-];
+const EXCLUDED_MODULES = ['auth', 'analytics', 'billing', 'admin', 'customers', 'events', 'health', 'mcp', 'settings'];
 
 if (!isDevelopment()) {
   EXCLUDED_MODULES.push('dev');
 }
 
-const toCamelCase = (str: string): string => str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+const toCamelCase = (str: string): string =>
+  str.replace(/-(?<letter>[a-z])/g, (_, letter: string) => letter.toUpperCase());
 
-const toIdentifier = (str: string): string => toCamelCase(str.replace(/[^a-zA-Z0-9]+(.)?/g, (_, letter) => (letter ? letter.toUpperCase() : '')));
+const toIdentifier = (str: string): string =>
+  toCamelCase(
+    str.replace(/[^a-zA-Z0-9]+(?<letter>.)?/g, (_, letter: string | undefined) => (letter ? letter.toUpperCase() : ''))
+  );
+
+const pathExists = async (path: string): Promise<boolean> => {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const discoverModules = async (): Promise<string[]> => {
   const allDirs = await readdir(MODULES_DIR, { withFileTypes: true });
@@ -101,15 +99,15 @@ const generateMcpToolsRegistry = async (modules: string[]): Promise<void> => {
     const routesFlatPath = join(MODULES_DIR, mod, 'routes.ts');
     const routeModules: string[] = [];
 
-    if (existsSync(routesIndexPath)) {
+    if (await pathExists(routesIndexPath)) {
       const routeFiles = (await readdir(routesDir)).filter((f) => f.endsWith('.ts'));
-      const hasMcp = (
-        await Promise.all(routeFiles.map((file) => readFile(join(routesDir, file), 'utf-8')))
-      ).some((text) => text.includes('mcp:'));
+      const hasMcp = (await Promise.all(routeFiles.map((file) => readFile(join(routesDir, file), 'utf-8')))).some(
+        (text) => text.includes('mcp:')
+      );
       if (hasMcp) {
         routeModules.push('routes/index');
       }
-    } else if (existsSync(routesDir)) {
+    } else if (await pathExists(routesDir)) {
       const routeFiles = (await readdir(routesDir)).filter((f) => f.endsWith('.ts'));
       for (const file of routeFiles) {
         const text = await readFile(join(routesDir, file), 'utf-8');
@@ -117,7 +115,7 @@ const generateMcpToolsRegistry = async (modules: string[]): Promise<void> => {
           routeModules.push(`routes/${file.replace(/\.ts$/, '')}`);
         }
       }
-    } else if (existsSync(routesFlatPath)) {
+    } else if (await pathExists(routesFlatPath)) {
       const text = await readFile(routesFlatPath, 'utf-8');
       if (text.includes('mcp:')) {
         routeModules.push('routes');

@@ -16,6 +16,8 @@ const logger = getLogger(['onboarding', 'create-connected-account-operation']);
 
 const RATE_LIMIT_STATUS_CODE = 429;
 const IDEMPOTENCY_KEY_IN_USE_STATUS_CODE = 409;
+const STRIPE_UNAUTHENTICATED_STATUS_CODE = 401;
+const STRIPE_PERMISSION_DENIED_STATUS_CODE = 403;
 
 interface CreateConnectedAccountParams {
   organizationId: string;
@@ -26,7 +28,7 @@ interface CreateConnectedAccountParams {
   requestKey?: string;
 }
 
-// A permanent, non-retryable failure (bad params, card/account rejected) is terminal — everything else, including rate limits, is ambiguous/transient and must stay retryable under the same key.
+// A permanent, non-retryable failure (bad params, card/account rejected) is terminal — everything else, including rate limits and Stripe-side auth/permission outages, is ambiguous/transient and must stay retryable under the same key.
 // ConnectedAccountsService wraps Stripe client errors in an HTTPException (which exposes
 // `.status`, not `.statusCode`) before they reach here. Unwrap `.cause` to classify the original
 // Stripe error underneath (mirrors isMissingConnectedAccountError's fix).
@@ -37,6 +39,13 @@ const isPermanentStripeFailure = (error: Error): boolean => {
   }
   // Stripe's `idempotency_error` covers two different cases with different statuses: a 409 means a concurrent caller with the same key is still in flight (transient — the operation stays pending for that caller or a later retry to resolve); a 400 means the key was reused with different parameters, a genuine caller bug that retrying under the same key can never fix, so it stays permanent.
   if (candidate.type === 'idempotency_error' && candidate.statusCode === IDEMPOTENCY_KEY_IN_USE_STATUS_CODE) {
+    return false;
+  }
+  // A 401 (invalid/rotated API key) or 403 (permission denied) reflects Stripe-account/credential trouble on Blawby's side, not a bad caller request — it can resolve itself (key gets fixed) without the caller changing anything, so poisoning the durable request key as permanently 'failed' would strand a legitimate retry behind an outage that has nothing to do with it.
+  if (
+    candidate.statusCode === STRIPE_UNAUTHENTICATED_STATUS_CODE ||
+    candidate.statusCode === STRIPE_PERMISSION_DENIED_STATUS_CODE
+  ) {
     return false;
   }
   return candidate.statusCode !== RATE_LIMIT_STATUS_CODE;

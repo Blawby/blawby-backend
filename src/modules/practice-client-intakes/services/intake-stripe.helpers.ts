@@ -116,6 +116,8 @@ export interface CreateIntakeSessionParams {
   origin?: string | null;
   conversationId?: string | null;
   userId?: string | null;
+  /** Stable idempotency key so a retry (a crash between a successful Stripe call and the DB persist of `stripe_checkout_session_id`) resolves to the same Checkout Session instead of creating a duplicate. */
+  idempotencyKey?: string;
 }
 
 export const createIntakeCheckoutSession = async (
@@ -155,31 +157,34 @@ export const createIntakeCheckoutSession = async (
     ? `&conversation_id=${encodeURIComponent(params.conversationId)}`
     : '';
 
-  return stripe.checkout.sessions.create({
-    mode: 'payment',
-    client_reference_id: params.intakeId,
-    success_url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${params.organizationSlug}${conversationParam}`,
-    cancel_url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${params.organizationSlug}&canceled=true${conversationParam}`,
-    line_items: [
-      {
-        price_data: {
-          currency: params.currency,
-          product_data: {
-            name: `Client Intake - ${params.organizationName}`,
-            description: params.description ?? 'Legal consultation payment',
+  return stripe.checkout.sessions.create(
+    {
+      mode: 'payment',
+      client_reference_id: params.intakeId,
+      success_url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${params.organizationSlug}${conversationParam}`,
+      cancel_url: `${getMatchingFrontendUrl(params.origin)}/pay?session_id={CHECKOUT_SESSION_ID}&return_to=/p/${params.organizationSlug}&canceled=true${conversationParam}`,
+      line_items: [
+        {
+          price_data: {
+            currency: params.currency,
+            product_data: {
+              name: `Client Intake - ${params.organizationName}`,
+              description: params.description ?? 'Legal consultation payment',
+            },
+            unit_amount: params.amount,
           },
-          unit_amount: params.amount,
+          quantity: 1,
         },
-        quantity: 1,
-      },
-    ],
-    payment_intent_data: {
-      on_behalf_of: params.stripeAccountId,
-      transfer_data: {
-        destination: params.stripeAccountId,
+      ],
+      payment_intent_data: {
+        on_behalf_of: params.stripeAccountId,
+        transfer_data: {
+          destination: params.stripeAccountId,
+        },
+        metadata,
       },
       metadata,
     },
-    metadata,
-  });
+    params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+  );
 };

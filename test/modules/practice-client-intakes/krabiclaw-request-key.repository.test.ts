@@ -24,26 +24,27 @@ describe('practiceClientIntakesRepository krabiclaw request key', () => {
     const org = await createTestOrganization();
     const requestKey = randomUUID();
 
-    const created = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
+    const { intake: created, isNewInsert } = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
       baseIntake(org.id, requestKey)
     );
 
+    expect(isNewInsert).toBe(true);
     expect(created.krabiclaw_request_key).toBe(requestKey);
 
     const found = await practiceClientIntakesRepository.findByKrabiClawRequestKey(org.id, requestKey);
     expect(found?.id).toBe(created.id);
   });
 
-  it('replays the same intake when the same organization reuses a request key', async () => {
+  it('replays the same intake when the same organization reuses a request key, and reports the replay as not a new insert', async () => {
     const org = await createTestOrganization();
     const requestKey = randomUUID();
 
     const first = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey));
-    const second = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
-      baseIntake(org.id, requestKey)
-    );
+    const second = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey));
 
-    expect(second.id).toBe(first.id);
+    expect(first.isNewInsert).toBe(true);
+    expect(second.isNewInsert).toBe(false);
+    expect(second.intake.id).toBe(first.intake.id);
   });
 
   it('does not leak an intake across organizations that happen to reuse the same request key', async () => {
@@ -51,17 +52,33 @@ describe('practiceClientIntakesRepository krabiclaw request key', () => {
     const orgB = await createTestOrganization();
     const requestKey = randomUUID();
 
-    const intakeA = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
-      baseIntake(orgA.id, requestKey)
-    );
-    const intakeB = await practiceClientIntakesRepository.createWithKrabiClawRequestKey(
-      baseIntake(orgB.id, requestKey)
-    );
+    const { intake: intakeA, isNewInsert: isNewInsertA } =
+      await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(orgA.id, requestKey));
+    const { intake: intakeB, isNewInsert: isNewInsertB } =
+      await practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(orgB.id, requestKey));
 
+    // Different organizations sharing a request key are not a race for the same conflict target
+    // (the unique constraint is scoped per-organization), so both are genuine inserts.
+    expect(isNewInsertA).toBe(true);
+    expect(isNewInsertB).toBe(true);
     expect(intakeB.id).not.toBe(intakeA.id);
     await expect(practiceClientIntakesRepository.findByKrabiClawRequestKey(orgB.id, requestKey)).resolves.toMatchObject(
       { id: intakeB.id }
     );
+  });
+
+  it('marks exactly one winner when two callers race on the same organization+request key', async () => {
+    const org = await createTestOrganization();
+    const requestKey = randomUUID();
+
+    const [first, second] = await Promise.all([
+      practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey)),
+      practiceClientIntakesRepository.createWithKrabiClawRequestKey(baseIntake(org.id, requestKey)),
+    ]);
+
+    const winners = [first, second].filter((result) => result.isNewInsert);
+    expect(winners).toHaveLength(1);
+    expect(first.intake.id).toBe(second.intake.id);
   });
 
   it('leaves regular intake creation without a request key unaffected', async () => {

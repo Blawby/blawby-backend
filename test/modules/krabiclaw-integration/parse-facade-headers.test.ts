@@ -27,15 +27,104 @@ describe('parseFacadeHeaders', () => {
       externalOrganizationId: 'ext-org-1',
       externalActorId: 'ext-user-1',
       actorKind: 'human',
+      requestReference: null,
+      trustedOriginatingClientIp: null,
     });
   });
 
-  it('parses a valid anonymous actor request with no actor id', async () => {
+  it('parses a valid anonymous actor request, retaining its actor id (R4)', async () => {
     const { captured } = await contextFromHeaders({
       'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
       'x-krabiclaw-actor-kind': 'anonymous',
     });
-    expect(captured).toEqual({ externalOrganizationId: 'ext-org-1', externalActorId: null, actorKind: 'anonymous' });
+    expect(captured).toEqual({
+      externalOrganizationId: 'ext-org-1',
+      externalActorId: 'ext-anon-actor-1',
+      actorKind: 'anonymous',
+      requestReference: null,
+      trustedOriginatingClientIp: null,
+    });
+  });
+
+  it('parses a valid request reference and originating-client-IP header', async () => {
+    const { captured } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
+      'x-krabiclaw-actor-kind': 'anonymous',
+      'x-krabiclaw-request-reference': '11111111-1111-4111-8111-111111111111',
+      'x-krabiclaw-originating-client-ip': '203.0.113.7',
+    });
+    expect(captured).toEqual({
+      externalOrganizationId: 'ext-org-1',
+      externalActorId: 'ext-anon-actor-1',
+      actorKind: 'anonymous',
+      requestReference: '11111111-1111-4111-8111-111111111111',
+      trustedOriginatingClientIp: '203.0.113.7',
+    });
+  });
+
+  it('rejects a non-UUIDv4 request reference', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
+      'x-krabiclaw-actor-kind': 'anonymous',
+      'x-krabiclaw-request-reference': 'not-a-uuid',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a non-canonical originating-client-IP header (e.g. a forwarded-for list)', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
+      'x-krabiclaw-actor-kind': 'anonymous',
+      'x-krabiclaw-originating-client-ip': '203.0.113.7, 10.0.0.1',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an oversized organization id header', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'x'.repeat(65),
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
+      'x-krabiclaw-actor-kind': 'anonymous',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an organization id header with a disallowed character', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1!',
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
+      'x-krabiclaw-actor-kind': 'anonymous',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an oversized actor id header', async () => {
+    const { res } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'ext-org-1',
+      'x-krabiclaw-actor-id': 'x'.repeat(65),
+      'x-krabiclaw-actor-kind': 'anonymous',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a valid non-UUID bounded canonical-text external ID', async () => {
+    const { res, captured } = await contextFromHeaders({
+      'x-krabiclaw-organization-id': 'org_2p8qsF1s0LKzAxYzR9WvQ',
+      'x-krabiclaw-actor-id': 'usr_9fVn2QxLp7aWzKcT4mHs',
+      'x-krabiclaw-actor-kind': 'anonymous',
+    });
+    expect(res.status).toBe(200);
+    expect(captured).toEqual({
+      externalOrganizationId: 'org_2p8qsF1s0LKzAxYzR9WvQ',
+      externalActorId: 'usr_9fVn2QxLp7aWzKcT4mHs',
+      actorKind: 'anonymous',
+      requestReference: null,
+      trustedOriginatingClientIp: null,
+    });
   });
 
   it('rejects a missing organization id', async () => {
@@ -59,10 +148,9 @@ describe('parseFacadeHeaders', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects an anonymous actor kind that also sends an actor id', async () => {
+  it('rejects an anonymous actor kind with no actor id (R4 — required for both actor kinds)', async () => {
     const { res } = await contextFromHeaders({
       'x-krabiclaw-organization-id': 'ext-org-1',
-      'x-krabiclaw-actor-id': 'ext-user-1',
       'x-krabiclaw-actor-kind': 'anonymous',
     });
     expect(res.status).toBe(400);
@@ -71,6 +159,7 @@ describe('parseFacadeHeaders', () => {
   it('rejects a duplicated organization id header (arrives comma-joined)', async () => {
     const { res } = await contextFromHeaders({
       'x-krabiclaw-organization-id': 'ext-org-1, ext-org-2',
+      'x-krabiclaw-actor-id': 'ext-anon-actor-1',
       'x-krabiclaw-actor-kind': 'anonymous',
     });
     expect(res.status).toBe(400);
